@@ -8,10 +8,9 @@ import {
   FileText, 
   Package, 
   AlertTriangle, 
-  ArrowLeft,
   Clock,
   CheckCircle,
-  Archive
+  LogOut
 } from "lucide-react";
 
 const features = [
@@ -86,22 +85,26 @@ const PharmacistDashboard = () => {
       {/* Header */}
       <header className="bg-card border-b border-border px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={() => navigate("/")}
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg flex items-center justify-center">
-                <Pill className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-foreground">Pharmacist Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg flex items-center justify-center">
+              <Pill className="w-6 h-6 text-white" />
             </div>
+            <h1 className="text-2xl font-bold text-foreground">Pharmacist Dashboard</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-muted-foreground text-sm">{user.email}</span>
+            <Button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigate("/auth");
+              }}
+              variant="outline"
+              size="sm"
+              className="border-border hover:bg-secondary"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
           </div>
         </div>
       </header>
