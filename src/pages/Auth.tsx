@@ -26,6 +26,7 @@ const signupSchema = z.object({
 const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
+  role: z.enum(["doctor", "patient", "pharmacist", "admin"]),
 });
 
 const Auth = () => {
@@ -44,20 +45,10 @@ const Auth = () => {
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate("/");
+        // User is logged in, but we need them to select a role
+        // So we don't auto-redirect from auth page
       }
     });
-
-    // Set up auth state listener
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && event === "SIGNED_IN") {
-        navigate("/");
-      }
-    });
-
-    return () => subscription.unsubscribe();
   }, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -137,7 +128,7 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const validated = loginSchema.parse({ email, password });
+      const validated = loginSchema.parse({ email, password, role });
 
       const { error } = await supabase.auth.signInWithPassword({
         email: validated.email,
@@ -150,6 +141,15 @@ const Auth = () => {
         title: "Welcome back!",
         description: "Successfully signed in.",
       });
+
+      // Navigate to the appropriate dashboard based on role
+      const dashboardPaths: Record<string, string> = {
+        doctor: "/doctor",
+        patient: "/patient",
+        pharmacist: "/pharmacist",
+        admin: "/admin",
+      };
+      navigate(dashboardPaths[validated.role]);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
@@ -231,56 +231,52 @@ const Auth = () => {
               />
             </div>
 
-            {!isLogin && (
+            <div className="space-y-2">
+              <Label htmlFor="role" className="text-foreground">
+                Role
+              </Label>
+              <Select value={role} onValueChange={(value: any) => setRole(value)}>
+                <SelectTrigger className="bg-input border-border text-foreground">
+                  <SelectValue placeholder="Select your role" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="doctor">Doctor</SelectItem>
+                  <SelectItem value="patient">Patient</SelectItem>
+                  <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {!isLogin && role === "doctor" && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="role" className="text-foreground">
-                    Role
+                  <Label htmlFor="medicalLicense" className="text-foreground">
+                    Medical License Number
                   </Label>
-                  <Select value={role} onValueChange={(value: any) => setRole(value)}>
-                    <SelectTrigger className="bg-input border-border text-foreground">
-                      <SelectValue placeholder="Select your role" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border">
-                      <SelectItem value="doctor">Doctor</SelectItem>
-                      <SelectItem value="patient">Patient</SelectItem>
-                      <SelectItem value="pharmacist">Pharmacist</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    id="medicalLicense"
+                    type="text"
+                    value={medicalLicenseNumber}
+                    onChange={(e) => setMedicalLicenseNumber(e.target.value)}
+                    className="bg-input border-border text-foreground"
+                    placeholder="Enter your medical license"
+                  />
                 </div>
 
-                {role === "doctor" && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="medicalLicense" className="text-foreground">
-                        Medical License Number
-                      </Label>
-                      <Input
-                        id="medicalLicense"
-                        type="text"
-                        value={medicalLicenseNumber}
-                        onChange={(e) => setMedicalLicenseNumber(e.target.value)}
-                        className="bg-input border-border text-foreground"
-                        placeholder="Enter your medical license"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="specialization" className="text-foreground">
-                        Specialization
-                      </Label>
-                      <Input
-                        id="specialization"
-                        type="text"
-                        value={specialization}
-                        onChange={(e) => setSpecialization(e.target.value)}
-                        className="bg-input border-border text-foreground"
-                        placeholder="e.g., Cardiology, Pediatrics"
-                      />
-                    </div>
-                  </>
-                )}
+                <div className="space-y-2">
+                  <Label htmlFor="specialization" className="text-foreground">
+                    Specialization
+                  </Label>
+                  <Input
+                    id="specialization"
+                    type="text"
+                    value={specialization}
+                    onChange={(e) => setSpecialization(e.target.value)}
+                    className="bg-input border-border text-foreground"
+                    placeholder="e.g., Cardiology, Pediatrics"
+                  />
+                </div>
               </>
             )}
 
