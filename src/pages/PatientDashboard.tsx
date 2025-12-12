@@ -5,45 +5,38 @@ import { Button } from "@/components/ui/button";
 import { User } from "@supabase/supabase-js";
 import { 
   Users, 
-  Calendar, 
-  FileText, 
   Pill, 
   Clock,
-  Activity,
+  Bell,
+  History,
   LogOut
 } from "lucide-react";
 
 const features = [
   {
-    title: "Book Appointment",
-    description: "Schedule a new appointment with a doctor",
-    icon: Calendar,
+    title: "Active Prescriptions",
+    description: "View your current active medications",
+    icon: Pill,
     color: "from-emerald-500 to-emerald-600",
   },
   {
-    title: "Medical History",
-    description: "View your complete medical records",
-    icon: FileText,
+    title: "Prescription History",
+    description: "View all past prescriptions and medications",
+    icon: History,
     color: "from-teal-500 to-teal-600",
   },
   {
-    title: "Prescriptions",
-    description: "View and manage your prescriptions",
-    icon: Pill,
+    title: "Reminder Setup",
+    description: "Set reminders for your medication schedule",
+    icon: Bell,
     color: "from-cyan-500 to-cyan-600",
-  },
-  {
-    title: "Health Vitals",
-    description: "Track your health vitals and metrics",
-    icon: Activity,
-    color: "from-rose-500 to-rose-600",
   },
 ];
 
 const stats = [
-  { label: "Upcoming Appointments", value: "2", icon: Calendar },
   { label: "Active Prescriptions", value: "3", icon: Pill },
-  { label: "Last Checkup", value: "15 days", icon: Clock },
+  { label: "Pending Reminders", value: "5", icon: Bell },
+  { label: "Completed Today", value: "2", icon: Clock },
 ];
 
 const PatientDashboard = () => {
