@@ -17,8 +17,8 @@ import { User } from "@supabase/supabase-js";
 interface Patient {
   id: string;
   full_name: string;
+  patient_id: string | null;
 }
-
 interface PrescriptionFormProps {
   user: User;
   onSuccess: () => void;
@@ -46,7 +46,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
         const patientIds = data.map((r) => r.user_id);
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("id, full_name")
+          .select("id, full_name, patient_id")
           .in("id", patientIds);
 
         if (profiles) {
@@ -107,7 +107,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
           <SelectContent>
             {patients.map((patient) => (
               <SelectItem key={patient.id} value={patient.id}>
-                {patient.full_name}
+                {patient.patient_id ? `${patient.patient_id} - ` : ""}{patient.full_name}
               </SelectItem>
             ))}
           </SelectContent>

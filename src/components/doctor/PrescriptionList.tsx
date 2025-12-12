@@ -25,6 +25,7 @@ interface Prescription {
   status: "active" | "completed" | "cancelled";
   created_at: string;
   patient_name?: string;
+  patient_code?: string;
 }
 
 interface PrescriptionListProps {
@@ -54,14 +55,17 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
       const patientIds = [...new Set(data.map((p) => p.patient_id))];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, full_name, patient_id")
         .in("id", patientIds);
 
-      const profileMap = new Map(profiles?.map((p) => [p.id, p.full_name]) || []);
-      
+      const profileMap = new Map(
+        profiles?.map((p) => [p.id, { name: p.full_name, code: p.patient_id }]) || []
+      );
+
       const prescriptionsWithNames = data.map((p) => ({
         ...p,
-        patient_name: profileMap.get(p.patient_id) || "Unknown Patient",
+        patient_name: profileMap.get(p.patient_id)?.name || "Unknown Patient",
+        patient_code: profileMap.get(p.patient_id)?.code || "",
       }));
 
       setPrescriptions(prescriptionsWithNames);
@@ -116,7 +120,8 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Patient</TableHead>
+            <TableHead>Patient ID</TableHead>
+            <TableHead>Patient Name</TableHead>
             <TableHead>Medication</TableHead>
             <TableHead>Dosage</TableHead>
             <TableHead>Frequency</TableHead>
@@ -128,6 +133,9 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
         <TableBody>
           {prescriptions.map((prescription) => (
             <TableRow key={prescription.id}>
+              <TableCell className="font-mono text-sm">
+                {prescription.patient_code || "-"}
+              </TableCell>
               <TableCell className="font-medium">{prescription.patient_name}</TableCell>
               <TableCell>{prescription.medication_name}</TableCell>
               <TableCell>{prescription.dosage}</TableCell>
