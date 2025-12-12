@@ -81,6 +81,7 @@ export type Database = {
           full_name: string
           id: string
           medical_license_number: string | null
+          patient_id: string | null
           phone: string | null
           specialization: string | null
           updated_at: string | null
@@ -91,6 +92,7 @@ export type Database = {
           full_name: string
           id: string
           medical_license_number?: string | null
+          patient_id?: string | null
           phone?: string | null
           specialization?: string | null
           updated_at?: string | null
@@ -101,6 +103,7 @@ export type Database = {
           full_name?: string
           id?: string
           medical_license_number?: string | null
+          patient_id?: string | null
           phone?: string | null
           specialization?: string | null
           updated_at?: string | null
