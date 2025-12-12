@@ -3,35 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { User } from "@supabase/supabase-js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Users, 
   Pill, 
   Clock,
   Bell,
-  History,
-  LogOut
+  LogOut,
+  User as UserIcon
 } from "lucide-react";
-
-const features = [
-  {
-    title: "Active Prescriptions",
-    description: "View your current active medications",
-    icon: Pill,
-    color: "from-emerald-500 to-emerald-600",
-  },
-  {
-    title: "Prescription History",
-    description: "View all past prescriptions and medications",
-    icon: History,
-    color: "from-teal-500 to-teal-600",
-  },
-  {
-    title: "Reminder Setup",
-    description: "Set reminders for your medication schedule",
-    icon: Bell,
-    color: "from-cyan-500 to-cyan-600",
-  },
-];
+import ProfileSetup from "@/components/ProfileSetup";
+import PatientPrescriptions from "@/components/patient/PatientPrescriptions";
 
 const stats = [
   { label: "Active Prescriptions", value: "3", icon: Pill },
@@ -42,6 +24,7 @@ const stats = [
 const PatientDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("prescriptions");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -122,22 +105,40 @@ const PatientDashboard = () => {
           ))}
         </div>
 
-        {/* Features Grid */}
-        <h2 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature) => (
-            <button
-              key={feature.title}
-              className="group bg-card border border-border rounded-xl p-6 text-left transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:border-primary/50 hover:-translate-y-1"
-            >
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                <feature.icon className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1">{feature.title}</h3>
-              <p className="text-muted-foreground text-sm">{feature.description}</p>
-            </button>
-          ))}
-        </div>
+        {/* Tabs Section */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="prescriptions" className="flex items-center gap-2">
+              <Pill className="w-4 h-4" />
+              My Prescriptions
+            </TabsTrigger>
+            <TabsTrigger value="reminders" className="flex items-center gap-2">
+              <Bell className="w-4 h-4" />
+              Reminders
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="flex items-center gap-2">
+              <UserIcon className="w-4 h-4" />
+              Profile
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="prescriptions">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <PatientPrescriptions user={user} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="reminders">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-4">Medication Reminders</h2>
+              <p className="text-muted-foreground">Reminder setup coming soon. You'll be able to set reminders for your prescription medications here.</p>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <ProfileSetup user={user} role="patient" onProfileComplete={() => {}} />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
