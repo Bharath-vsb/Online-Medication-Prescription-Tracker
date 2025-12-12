@@ -3,53 +3,32 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { User } from "@supabase/supabase-js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Stethoscope, 
-  Calendar, 
-  Users, 
-  FileText, 
+  Pill,
   Clock, 
   UserCheck,
   ClipboardList,
-  LogOut
+  LogOut,
+  User as UserIcon,
+  Plus
 } from "lucide-react";
-
-const features = [
-  {
-    title: "Appointments",
-    description: "View and manage patient appointments",
-    icon: Calendar,
-    color: "from-teal-500 to-teal-600",
-  },
-  {
-    title: "Patient Records",
-    description: "Access and update patient medical records",
-    icon: Users,
-    color: "from-emerald-500 to-emerald-600",
-  },
-  {
-    title: "Prescriptions",
-    description: "Write and manage prescriptions",
-    icon: FileText,
-    color: "from-cyan-500 to-cyan-600",
-  },
-  {
-    title: "Consultations",
-    description: "Track consultation history",
-    icon: ClipboardList,
-    color: "from-slate-500 to-slate-600",
-  },
-];
+import ProfileSetup from "@/components/ProfileSetup";
+import PrescriptionForm from "@/components/doctor/PrescriptionForm";
+import PrescriptionList from "@/components/doctor/PrescriptionList";
 
 const stats = [
-  { label: "Today's Appointments", value: "12", icon: Calendar },
-  { label: "Patients Seen", value: "8", icon: UserCheck },
+  { label: "Active Prescriptions", value: "12", icon: Pill },
+  { label: "Patients Treated", value: "8", icon: UserCheck },
   { label: "Pending Reviews", value: "5", icon: Clock },
 ];
 
 const DoctorDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("prescriptions");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -130,22 +109,47 @@ const DoctorDashboard = () => {
           ))}
         </div>
 
-        {/* Features Grid */}
-        <h2 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature) => (
-            <button
-              key={feature.title}
-              className="group bg-card border border-border rounded-xl p-6 text-left transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:border-primary/50 hover:-translate-y-1"
-            >
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                <feature.icon className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1">{feature.title}</h3>
-              <p className="text-muted-foreground text-sm">{feature.description}</p>
-            </button>
-          ))}
-        </div>
+        {/* Tabs Section */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="prescriptions" className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4" />
+              Prescriptions
+            </TabsTrigger>
+            <TabsTrigger value="new-prescription" className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              New Prescription
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="flex items-center gap-2">
+              <UserIcon className="w-4 h-4" />
+              Profile
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="prescriptions">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-4">My Prescriptions</h2>
+              <PrescriptionList user={user} refreshTrigger={refreshTrigger} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="new-prescription">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-4">Create New Prescription</h2>
+              <PrescriptionForm 
+                user={user} 
+                onSuccess={() => {
+                  setRefreshTrigger((prev) => prev + 1);
+                  setActiveTab("prescriptions");
+                }} 
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <ProfileSetup user={user} role="doctor" onProfileComplete={() => {}} />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

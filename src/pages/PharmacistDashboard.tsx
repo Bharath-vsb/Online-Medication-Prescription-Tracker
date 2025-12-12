@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { User } from "@supabase/supabase-js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Pill, 
   FileText, 
@@ -10,8 +11,10 @@ import {
   AlertTriangle, 
   Clock,
   CheckCircle,
-  LogOut
+  LogOut,
+  User as UserIcon
 } from "lucide-react";
+import ProfileSetup from "@/components/ProfileSetup";
 
 const features = [
   {
@@ -49,6 +52,7 @@ const stats = [
 const PharmacistDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("dashboard");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -129,22 +133,41 @@ const PharmacistDashboard = () => {
           ))}
         </div>
 
-        {/* Features Grid */}
-        <h2 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature) => (
-            <button
-              key={feature.title}
-              className="group bg-card border border-border rounded-xl p-6 text-left transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:border-primary/50 hover:-translate-y-1"
-            >
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                <feature.icon className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1">{feature.title}</h3>
-              <p className="text-muted-foreground text-sm">{feature.description}</p>
-            </button>
-          ))}
-        </div>
+        {/* Tabs Section */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="dashboard" className="flex items-center gap-2">
+              <Pill className="w-4 h-4" />
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="flex items-center gap-2">
+              <UserIcon className="w-4 h-4" />
+              Profile
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="dashboard">
+            <h2 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {features.map((feature) => (
+                <button
+                  key={feature.title}
+                  className="group bg-card border border-border rounded-xl p-6 text-left transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:border-primary/50 hover:-translate-y-1"
+                >
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                    <feature.icon className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground mb-1">{feature.title}</h3>
+                  <p className="text-muted-foreground text-sm">{feature.description}</p>
+                </button>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <ProfileSetup user={user} role="pharmacist" onProfileComplete={() => {}} />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

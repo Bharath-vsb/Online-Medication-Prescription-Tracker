@@ -14,28 +14,94 @@ export type Database = {
   }
   public: {
     Tables: {
+      prescriptions: {
+        Row: {
+          created_at: string
+          doctor_id: string
+          dosage: string
+          end_date: string | null
+          frequency: string
+          id: string
+          instructions: string | null
+          medication_name: string
+          patient_id: string
+          start_date: string
+          status: Database["public"]["Enums"]["prescription_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          doctor_id: string
+          dosage: string
+          end_date?: string | null
+          frequency: string
+          id?: string
+          instructions?: string | null
+          medication_name: string
+          patient_id: string
+          start_date?: string
+          status?: Database["public"]["Enums"]["prescription_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          doctor_id?: string
+          dosage?: string
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          instructions?: string | null
+          medication_name?: string
+          patient_id?: string
+          start_date?: string
+          status?: Database["public"]["Enums"]["prescription_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescriptions_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescriptions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
+          address: string | null
           created_at: string | null
           full_name: string
           id: string
           medical_license_number: string | null
+          phone: string | null
           specialization: string | null
           updated_at: string | null
         }
         Insert: {
+          address?: string | null
           created_at?: string | null
           full_name: string
           id: string
           medical_license_number?: string | null
+          phone?: string | null
           specialization?: string | null
           updated_at?: string | null
         }
         Update: {
+          address?: string | null
           created_at?: string | null
           full_name?: string
           id?: string
           medical_license_number?: string | null
+          phone?: string | null
           specialization?: string | null
           updated_at?: string | null
         }
@@ -77,6 +143,7 @@ export type Database = {
     }
     Enums: {
       app_role: "doctor" | "patient" | "pharmacist" | "admin"
+      prescription_status: "active" | "completed" | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -205,6 +272,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["doctor", "patient", "pharmacist", "admin"],
+      prescription_status: ["active", "completed", "cancelled"],
     },
   },
 } as const
