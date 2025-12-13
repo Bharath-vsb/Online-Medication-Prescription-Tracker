@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      medications: {
+        Row: {
+          category: string | null
+          created_at: string
+          default_dosage: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          default_dosage?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          default_dosage?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       prescriptions: {
         Row: {
           created_at: string

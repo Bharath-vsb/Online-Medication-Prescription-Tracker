@@ -19,6 +19,14 @@ interface Patient {
   full_name: string;
   patient_id: string | null;
 }
+
+interface Medication {
+  id: string;
+  name: string;
+  category: string | null;
+  default_dosage: string | null;
+}
+
 interface PrescriptionFormProps {
   user: User;
   onSuccess: () => void;
@@ -27,8 +35,9 @@ interface PrescriptionFormProps {
 const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [patientId, setPatientId] = useState("");
-  const [medicationName, setMedicationName] = useState("");
+  const [selectedMedication, setSelectedMedication] = useState("");
   const [dosage, setDosage] = useState("");
   const [frequency, setFrequency] = useState("");
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
@@ -36,14 +45,15 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const [instructions, setInstructions] = useState("");
 
   useEffect(() => {
-    const fetchPatients = async () => {
-      const { data } = await supabase
+    const fetchData = async () => {
+      // Fetch patients
+      const { data: rolesData } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("role", "patient");
 
-      if (data && data.length > 0) {
-        const patientIds = data.map((r) => r.user_id);
+      if (rolesData && rolesData.length > 0) {
+        const patientIds = rolesData.map((r) => r.user_id);
         const { data: profiles } = await supabase
           .from("profiles")
           .select("id, full_name, patient_id")
@@ -53,10 +63,28 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
           setPatients(profiles);
         }
       }
+
+      // Fetch medications
+      const { data: medsData } = await supabase
+        .from("medications")
+        .select("id, name, category, default_dosage")
+        .order("category", { ascending: true });
+
+      if (medsData) {
+        setMedications(medsData);
+      }
     };
 
-    fetchPatients();
+    fetchData();
   }, []);
+
+  const handleMedicationChange = (medicationId: string) => {
+    setSelectedMedication(medicationId);
+    const med = medications.find((m) => m.id === medicationId);
+    if (med?.default_dosage) {
+      setDosage(med.default_dosage);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,12 +94,19 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
+    if (!selectedMedication) {
+      toast.error("Please select a medication");
+      return;
+    }
+
+    const medication = medications.find((m) => m.id === selectedMedication);
+
     setLoading(true);
 
     const { error } = await supabase.from("prescriptions").insert({
       patient_id: patientId,
       doctor_id: user.id,
-      medication_name: medicationName.trim(),
+      medication_name: medication?.name || "",
       dosage: dosage.trim(),
       frequency: frequency.trim(),
       start_date: startDate,
@@ -86,7 +121,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     } else {
       toast.success("Prescription created successfully");
       setPatientId("");
-      setMedicationName("");
+      setSelectedMedication("");
       setDosage("");
       setFrequency("");
       setStartDate(new Date().toISOString().split("T")[0]);
@@ -116,14 +151,19 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="medication">Medication Name</Label>
-          <Input
-            id="medication"
-            value={medicationName}
-            onChange={(e) => setMedicationName(e.target.value)}
-            placeholder="Enter medication name"
-            required
-          />
+          <Label htmlFor="medication">Select Medication</Label>
+          <Select value={selectedMedication} onValueChange={handleMedicationChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a medication" />
+            </SelectTrigger>
+            <SelectContent>
+              {medications.map((med) => (
+                <SelectItem key={med.id} value={med.id}>
+                  {med.name} {med.category ? `(${med.category})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label htmlFor="dosage">Dosage</Label>
