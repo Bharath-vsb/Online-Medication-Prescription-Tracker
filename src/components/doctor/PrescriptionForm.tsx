@@ -99,6 +99,31 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
+    if (!dosage.trim()) {
+      toast.error("Please enter dosage");
+      return;
+    }
+
+    if (!frequency.trim()) {
+      toast.error("Please enter frequency");
+      return;
+    }
+
+    if (!startDate) {
+      toast.error("Please select start date");
+      return;
+    }
+
+    if (!endDate) {
+      toast.error("Please select end date");
+      return;
+    }
+
+    if (!instructions.trim()) {
+      toast.error("Please enter instructions");
+      return;
+    }
+
     const medication = medications.find((m) => m.id === selectedMedication);
 
     setLoading(true);
@@ -110,8 +135,8 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       dosage: dosage.trim(),
       frequency: frequency.trim(),
       start_date: startDate,
-      end_date: endDate || null,
-      instructions: instructions.trim() || null,
+      end_date: endDate,
+      instructions: instructions.trim(),
     });
 
     setLoading(false);
@@ -199,24 +224,26 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
           />
         </div>
         <div>
-          <Label htmlFor="endDate">End Date (Optional)</Label>
+          <Label htmlFor="endDate">End Date <span className="text-destructive">*</span></Label>
           <Input
             id="endDate"
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
+            required
           />
         </div>
       </div>
 
       <div>
-        <Label htmlFor="instructions">Instructions</Label>
+        <Label htmlFor="instructions">Instructions <span className="text-destructive">*</span></Label>
         <Textarea
           id="instructions"
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
           placeholder="Special instructions for the patient"
           rows={3}
+          required
         />
       </div>
 
