@@ -18,18 +18,40 @@ import ProfileSetup from "@/components/ProfileSetup";
 import PrescriptionForm from "@/components/doctor/PrescriptionForm";
 import PrescriptionList from "@/components/doctor/PrescriptionList";
 
-const stats = [
-  { label: "Active Prescriptions", value: "12", icon: Pill },
-  { label: "Patients Treated", value: "8", icon: UserCheck },
-  { label: "Pending Reviews", value: "5", icon: Clock },
-];
-
 const DoctorDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("prescriptions");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [stats, setStats] = useState({
+    active: 0,
+    patientsTreated: 0,
+    completed: 0
+  });
   const navigate = useNavigate();
+
+  // Fetch prescription stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from("prescriptions")
+        .select("status, patient_id")
+        .eq("doctor_id", user.id);
+      
+      if (data) {
+        const uniquePatients = new Set(data.map(p => p.patient_id));
+        setStats({
+          active: data.filter(p => p.status === "active").length,
+          patientsTreated: uniquePatients.size,
+          completed: data.filter(p => p.status === "completed").length
+        });
+      }
+    };
+    
+    fetchStats();
+  }, [user, refreshTrigger]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -93,20 +115,33 @@ const DoctorDashboard = () => {
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-card border border-border rounded-xl p-6 flex items-center gap-4"
-            >
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                <stat.icon className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-muted-foreground text-sm">{stat.label}</p>
-              </div>
+          <div className="bg-card border border-border rounded-xl p-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Pill className="w-6 h-6 text-primary" />
             </div>
-          ))}
+            <div>
+              <p className="text-3xl font-bold text-foreground">{stats.active}</p>
+              <p className="text-muted-foreground text-sm">Active Prescriptions</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <UserCheck className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-3xl font-bold text-foreground">{stats.patientsTreated}</p>
+              <p className="text-muted-foreground text-sm">Patients Treated</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Clock className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-3xl font-bold text-foreground">{stats.completed}</p>
+              <p className="text-muted-foreground text-sm">Completed</p>
+            </div>
+          </div>
         </div>
 
         {/* Tabs Section */}
