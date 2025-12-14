@@ -130,26 +130,59 @@ const Auth = () => {
     try {
       const validated = loginSchema.parse({ email, password, role });
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: validated.email,
         password: validated.password,
       });
 
       if (error) throw error;
 
+      if (!authData.user) {
+        throw new Error("Authentication failed");
+      }
+
+      // Verify user has the selected role in the database
+      const { data: userRole, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", authData.user.id)
+        .maybeSingle();
+
+      if (roleError) {
+        await supabase.auth.signOut();
+        throw new Error("Failed to verify user role");
+      }
+
+      if (!userRole) {
+        await supabase.auth.signOut();
+        throw new Error("No role assigned to this account. Please contact support.");
+      }
+
+      // Check if selected role matches the user's actual role
+      if (userRole.role !== validated.role) {
+        await supabase.auth.signOut();
+        toast({
+          variant: "destructive",
+          title: "Role Mismatch",
+          description: `This account is registered as a ${userRole.role}. Please select the correct role.`,
+        });
+        setLoading(false);
+        return;
+      }
+
       toast({
         title: "Welcome back!",
         description: "Successfully signed in.",
       });
 
-      // Navigate to the appropriate dashboard based on role
+      // Navigate to the appropriate dashboard based on verified role
       const dashboardPaths: Record<string, string> = {
         doctor: "/doctor",
         patient: "/patient",
         pharmacist: "/pharmacist",
         admin: "/admin",
       };
-      navigate(dashboardPaths[validated.role]);
+      navigate(dashboardPaths[userRole.role]);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
