@@ -15,9 +15,10 @@ import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
 
 interface Patient {
-  id: string;
+  patient_id: string;
+  user_id: string;
   full_name: string;
-  patient_id: string | null;
+  patient_code: string | null;
 }
 
 interface Medication {
@@ -36,7 +37,8 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
-  const [patientId, setPatientId] = useState("");
+  const [doctorId, setDoctorId] = useState<string | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState("");
   const [selectedMedication, setSelectedMedication] = useState("");
   const [dosage, setDosage] = useState("");
   const [frequency, setFrequency] = useState("");
@@ -46,21 +48,38 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch patients
-      const { data: rolesData } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "patient");
+      // Fetch doctor's doctor_id
+      const { data: doctorData } = await supabase
+        .from("doctors")
+        .select("doctor_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-      if (rolesData && rolesData.length > 0) {
-        const patientIds = rolesData.map((r) => r.user_id);
+      if (doctorData) {
+        setDoctorId(doctorData.doctor_id);
+      }
+
+      // Fetch patients with their profiles
+      const { data: patientsData } = await supabase
+        .from("patients")
+        .select("patient_id, user_id");
+
+      if (patientsData && patientsData.length > 0) {
+        const userIds = patientsData.map((p) => p.user_id);
         const { data: profiles } = await supabase
           .from("profiles")
           .select("id, full_name, patient_id")
-          .in("id", patientIds);
+          .in("id", userIds);
 
         if (profiles) {
-          setPatients(profiles);
+          const profileMap = new Map(profiles.map((p) => [p.id, { name: p.full_name, code: p.patient_id }]));
+          const patientsWithNames = patientsData.map((p) => ({
+            patient_id: p.patient_id,
+            user_id: p.user_id,
+            full_name: profileMap.get(p.user_id)?.name || "Unknown",
+            patient_code: profileMap.get(p.user_id)?.code || null,
+          }));
+          setPatients(patientsWithNames);
         }
       }
 
@@ -76,7 +95,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     };
 
     fetchData();
-  }, []);
+  }, [user.id]);
 
   const handleMedicationChange = (medicationId: string) => {
     setSelectedMedication(medicationId);
@@ -89,7 +108,12 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!patientId) {
+    if (!doctorId) {
+      toast.error("Doctor record not found. Please contact support.");
+      return;
+    }
+
+    if (!selectedPatient) {
       toast.error("Please select a patient");
       return;
     }
@@ -125,12 +149,15 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     }
 
     const medication = medications.find((m) => m.id === selectedMedication);
+    const patient = patients.find((p) => p.patient_id === selectedPatient);
 
     setLoading(true);
 
     const { error } = await supabase.from("prescriptions").insert({
-      patient_id: patientId,
+      patient_id: patient?.user_id || "",
       doctor_id: user.id,
+      patient_ref: selectedPatient,
+      doctor_ref: doctorId,
       medication_name: medication?.name || "",
       dosage: dosage.trim(),
       frequency: frequency.trim(),
@@ -142,10 +169,11 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     setLoading(false);
 
     if (error) {
+      console.error("Prescription error:", error);
       toast.error("Failed to create prescription");
     } else {
       toast.success("Prescription created successfully");
-      setPatientId("");
+      setSelectedPatient("");
       setSelectedMedication("");
       setDosage("");
       setFrequency("");
@@ -159,15 +187,15 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label htmlFor="patient">Select Patient</Label>
-        <Select value={patientId} onValueChange={setPatientId}>
+        <Label htmlFor="patient">Select Patient <span className="text-destructive">*</span></Label>
+        <Select value={selectedPatient} onValueChange={setSelectedPatient}>
           <SelectTrigger>
             <SelectValue placeholder="Select a patient" />
           </SelectTrigger>
           <SelectContent>
             {patients.map((patient) => (
-              <SelectItem key={patient.id} value={patient.id}>
-                {patient.patient_id ? `${patient.patient_id} - ` : ""}{patient.full_name}
+              <SelectItem key={patient.patient_id} value={patient.patient_id}>
+                {patient.patient_code ? `${patient.patient_code} - ` : ""}{patient.full_name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -176,7 +204,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="medication">Select Medication</Label>
+          <Label htmlFor="medication">Select Medication <span className="text-destructive">*</span></Label>
           <Select value={selectedMedication} onValueChange={handleMedicationChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select a medication" />
@@ -191,7 +219,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
           </Select>
         </div>
         <div>
-          <Label htmlFor="dosage">Dosage</Label>
+          <Label htmlFor="dosage">Dosage <span className="text-destructive">*</span></Label>
           <Input
             id="dosage"
             value={dosage}
@@ -204,7 +232,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <Label htmlFor="frequency">Frequency</Label>
+          <Label htmlFor="frequency">Frequency <span className="text-destructive">*</span></Label>
           <Input
             id="frequency"
             value={frequency}
@@ -214,7 +242,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
           />
         </div>
         <div>
-          <Label htmlFor="startDate">Start Date</Label>
+          <Label htmlFor="startDate">Start Date <span className="text-destructive">*</span></Label>
           <Input
             id="startDate"
             type="date"

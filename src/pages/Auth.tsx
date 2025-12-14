@@ -92,6 +92,23 @@ const Auth = () => {
 
         if (roleError) throw roleError;
 
+        // Create role-specific record
+        if (validated.role === "patient") {
+          const { error: patientError } = await supabase
+            .from("patients")
+            .insert({ user_id: data.user.id });
+          if (patientError) throw patientError;
+        } else if (validated.role === "doctor") {
+          const { error: doctorError } = await supabase
+            .from("doctors")
+            .insert({ 
+              user_id: data.user.id,
+              specialization: validated.specialization || null,
+              license_number: validated.medicalLicenseNumber || null
+            });
+          if (doctorError) throw doctorError;
+        }
+
         toast({
           title: "Account created successfully!",
           description: "You can now sign in.",

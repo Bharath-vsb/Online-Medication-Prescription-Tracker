@@ -16,7 +16,7 @@ import { format } from "date-fns";
 
 interface Prescription {
   id: string;
-  patient_id: string;
+  patient_ref: string | null;
   medication_name: string;
   dosage: string;
   frequency: string;
@@ -36,13 +36,30 @@ interface PrescriptionListProps {
 const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState(true);
+  const [doctorId, setDoctorId] = useState<string | null>(null);
 
   const fetchPrescriptions = async () => {
     setLoading(true);
+    
+    // First get the doctor's doctor_id
+    const { data: doctorData } = await supabase
+      .from("doctors")
+      .select("doctor_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!doctorData) {
+      setLoading(false);
+      setPrescriptions([]);
+      return;
+    }
+    
+    setDoctorId(doctorData.doctor_id);
+
     const { data, error } = await supabase
       .from("prescriptions")
       .select("*")
-      .eq("doctor_id", user.id)
+      .eq("doctor_ref", doctorData.doctor_id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -52,23 +69,47 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
     }
 
     if (data && data.length > 0) {
-      const patientIds = [...new Set(data.map((p) => p.patient_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, patient_id")
-        .in("id", patientIds);
+      // Get patient_ref values
+      const patientRefs = [...new Set(data.map((p) => p.patient_ref).filter(Boolean))];
+      
+      if (patientRefs.length > 0) {
+        // Fetch patients
+        const { data: patientsData } = await supabase
+          .from("patients")
+          .select("patient_id, user_id")
+          .in("patient_id", patientRefs);
 
-      const profileMap = new Map(
-        profiles?.map((p) => [p.id, { name: p.full_name, code: p.patient_id }]) || []
-      );
+        if (patientsData) {
+          const userIds = patientsData.map((p) => p.user_id);
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, patient_id")
+            .in("id", userIds);
 
-      const prescriptionsWithNames = data.map((p) => ({
-        ...p,
-        patient_name: profileMap.get(p.patient_id)?.name || "Unknown Patient",
-        patient_code: profileMap.get(p.patient_id)?.code || "",
-      }));
+          const profileMap = new Map(
+            profiles?.map((p) => [p.id, { name: p.full_name, code: p.patient_id }]) || []
+          );
+          
+          const patientMap = new Map(
+            patientsData.map((p) => [
+              p.patient_id, 
+              profileMap.get(p.user_id) || { name: "Unknown", code: "" }
+            ])
+          );
 
-      setPrescriptions(prescriptionsWithNames);
+          const prescriptionsWithNames = data.map((p) => ({
+            ...p,
+            patient_name: patientMap.get(p.patient_ref)?.name || "Unknown Patient",
+            patient_code: patientMap.get(p.patient_ref)?.code || "",
+          }));
+
+          setPrescriptions(prescriptionsWithNames);
+        } else {
+          setPrescriptions(data);
+        }
+      } else {
+        setPrescriptions(data);
+      }
     } else {
       setPrescriptions([]);
     }
