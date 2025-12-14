@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      doctors: {
+        Row: {
+          created_at: string
+          doctor_id: string
+          license_number: string | null
+          specialization: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          doctor_id?: string
+          license_number?: string | null
+          specialization?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          doctor_id?: string
+          license_number?: string | null
+          specialization?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       medications: {
         Row: {
           category: string | null
@@ -38,10 +65,41 @@ export type Database = {
         }
         Relationships: []
       }
+      patients: {
+        Row: {
+          age: number | null
+          created_at: string
+          gender: string | null
+          medical_notes: string | null
+          patient_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          age?: number | null
+          created_at?: string
+          gender?: string | null
+          medical_notes?: string | null
+          patient_id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          age?: number | null
+          created_at?: string
+          gender?: string | null
+          medical_notes?: string | null
+          patient_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       prescriptions: {
         Row: {
           created_at: string
           doctor_id: string
+          doctor_ref: string | null
           dosage: string
           end_date: string | null
           frequency: string
@@ -49,6 +107,7 @@ export type Database = {
           instructions: string | null
           medication_name: string
           patient_id: string
+          patient_ref: string | null
           start_date: string
           status: Database["public"]["Enums"]["prescription_status"]
           updated_at: string
@@ -56,6 +115,7 @@ export type Database = {
         Insert: {
           created_at?: string
           doctor_id: string
+          doctor_ref?: string | null
           dosage: string
           end_date?: string | null
           frequency: string
@@ -63,6 +123,7 @@ export type Database = {
           instructions?: string | null
           medication_name: string
           patient_id: string
+          patient_ref?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["prescription_status"]
           updated_at?: string
@@ -70,6 +131,7 @@ export type Database = {
         Update: {
           created_at?: string
           doctor_id?: string
+          doctor_ref?: string | null
           dosage?: string
           end_date?: string | null
           frequency?: string
@@ -77,6 +139,7 @@ export type Database = {
           instructions?: string | null
           medication_name?: string
           patient_id?: string
+          patient_ref?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["prescription_status"]
           updated_at?: string
@@ -90,11 +153,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "prescriptions_doctor_ref_fkey"
+            columns: ["doctor_ref"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["doctor_id"]
+          },
+          {
             foreignKeyName: "prescriptions_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescriptions_patient_ref_fkey"
+            columns: ["patient_ref"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["patient_id"]
           },
         ]
       }

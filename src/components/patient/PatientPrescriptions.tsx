@@ -17,7 +17,7 @@ import { Pill, History } from "lucide-react";
 
 interface Prescription {
   id: string;
-  doctor_id: string;
+  doctor_ref: string | null;
   medication_name: string;
   dosage: string;
   frequency: string;
@@ -39,10 +39,22 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
 
   useEffect(() => {
     const fetchPrescriptions = async () => {
+      // First get the patient's patient_id
+      const { data: patientData } = await supabase
+        .from("patients")
+        .select("patient_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!patientData) {
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("prescriptions")
         .select("*")
-        .eq("patient_id", user.id)
+        .eq("patient_ref", patientData.patient_id)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -52,20 +64,40 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
       }
 
       if (data && data.length > 0) {
-        const doctorIds = [...new Set(data.map((p) => p.doctor_id))];
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", doctorIds);
+        // Get doctor_ref values
+        const doctorRefs = [...new Set(data.map((p) => p.doctor_ref).filter(Boolean))];
+        
+        if (doctorRefs.length > 0) {
+          // Fetch doctors
+          const { data: doctorsData } = await supabase
+            .from("doctors")
+            .select("doctor_id, user_id")
+            .in("doctor_id", doctorRefs);
 
-        const profileMap = new Map(profiles?.map((p) => [p.id, p.full_name]) || []);
+          if (doctorsData) {
+            const userIds = doctorsData.map((d) => d.user_id);
+            const { data: profiles } = await supabase
+              .from("profiles")
+              .select("id, full_name")
+              .in("id", userIds);
 
-        const prescriptionsWithNames = data.map((p) => ({
-          ...p,
-          doctor_name: profileMap.get(p.doctor_id) || "Unknown Doctor",
-        }));
+            const profileMap = new Map(profiles?.map((p) => [p.id, p.full_name]) || []);
+            const doctorMap = new Map(
+              doctorsData.map((d) => [d.doctor_id, profileMap.get(d.user_id) || "Unknown"])
+            );
 
-        setPrescriptions(prescriptionsWithNames);
+            const prescriptionsWithNames = data.map((p) => ({
+              ...p,
+              doctor_name: doctorMap.get(p.doctor_ref) || "Unknown Doctor",
+            }));
+
+            setPrescriptions(prescriptionsWithNames);
+          } else {
+            setPrescriptions(data);
+          }
+        } else {
+          setPrescriptions(data);
+        }
       }
 
       setLoading(false);

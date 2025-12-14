@@ -35,13 +35,22 @@ const DoctorDashboard = () => {
     const fetchStats = async () => {
       if (!user) return;
       
+      // First get the doctor's doctor_id
+      const { data: doctorData } = await supabase
+        .from("doctors")
+        .select("doctor_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!doctorData) return;
+
       const { data } = await supabase
         .from("prescriptions")
-        .select("status, patient_id")
-        .eq("doctor_id", user.id);
+        .select("status, patient_ref")
+        .eq("doctor_ref", doctorData.doctor_id);
       
       if (data) {
-        const uniquePatients = new Set(data.map(p => p.patient_id));
+        const uniquePatients = new Set(data.map(p => p.patient_ref).filter(Boolean));
         setStats({
           active: data.filter(p => p.status === "active").length,
           patientsTreated: uniquePatients.size,

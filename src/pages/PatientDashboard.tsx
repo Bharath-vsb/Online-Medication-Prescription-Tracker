@@ -31,10 +31,19 @@ const PatientDashboard = () => {
     const fetchStats = async () => {
       if (!user) return;
       
+      // First get the patient's patient_id
+      const { data: patientData } = await supabase
+        .from("patients")
+        .select("patient_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!patientData) return;
+
       const { data } = await supabase
         .from("prescriptions")
         .select("status")
-        .eq("patient_id", user.id);
+        .eq("patient_ref", patientData.patient_id);
       
       if (data) {
         setStats({
