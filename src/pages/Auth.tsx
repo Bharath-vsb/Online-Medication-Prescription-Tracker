@@ -4,15 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+
+const roleOptions = [
+  { value: "doctor", label: "Doctor" },
+  { value: "patient", label: "Patient" },
+  { value: "pharmacist", label: "Pharmacist" },
+  { value: "admin", label: "Admin" },
+];
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
@@ -285,17 +286,14 @@ const Auth = () => {
               <Label htmlFor="role" className="text-foreground">
                 Role
               </Label>
-              <Select value={role} onValueChange={(value: any) => setRole(value)}>
-                <SelectTrigger className="bg-input border-border text-foreground">
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  <SelectItem value="doctor">Doctor</SelectItem>
-                  <SelectItem value="patient">Patient</SelectItem>
-                  <SelectItem value="pharmacist">Pharmacist</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={roleOptions}
+                value={role}
+                onValueChange={(value) => setRole(value as any)}
+                placeholder="Select your role"
+                searchPlaceholder="Search roles..."
+                emptyMessage="No roles found."
+              />
             </div>
 
             {!isLogin && role === "doctor" && (
