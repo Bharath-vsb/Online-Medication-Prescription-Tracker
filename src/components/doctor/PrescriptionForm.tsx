@@ -4,13 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
 
@@ -188,35 +182,33 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="patient">Select Patient <span className="text-destructive">*</span></Label>
-        <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select a patient" />
-          </SelectTrigger>
-          <SelectContent>
-            {patients.map((patient) => (
-              <SelectItem key={patient.patient_id} value={patient.patient_id}>
-                {patient.patient_code ? `${patient.patient_code} - ` : ""}{patient.full_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={patients.map((patient) => ({
+            value: patient.patient_id,
+            label: `${patient.patient_code ? `${patient.patient_code} - ` : ""}${patient.full_name}`,
+          }))}
+          value={selectedPatient}
+          onValueChange={setSelectedPatient}
+          placeholder="Select a patient"
+          searchPlaceholder="Search patients..."
+          emptyMessage="No patients found."
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="medication">Select Medication <span className="text-destructive">*</span></Label>
-          <Select value={selectedMedication} onValueChange={handleMedicationChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a medication" />
-            </SelectTrigger>
-            <SelectContent>
-              {medications.map((med) => (
-                <SelectItem key={med.id} value={med.id}>
-                  {med.name} {med.category ? `(${med.category})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            options={medications.map((med) => ({
+              value: med.id,
+              label: `${med.name}${med.category ? ` (${med.category})` : ""}`,
+            }))}
+            value={selectedMedication}
+            onValueChange={handleMedicationChange}
+            placeholder="Select a medication"
+            searchPlaceholder="Search medications..."
+            emptyMessage="No medications found."
+          />
         </div>
         <div>
           <Label htmlFor="dosage">Dosage <span className="text-destructive">*</span></Label>
