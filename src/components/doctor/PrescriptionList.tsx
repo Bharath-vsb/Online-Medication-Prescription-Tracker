@@ -13,6 +13,8 @@ import {
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
 import { format } from "date-fns";
+import { Download } from "lucide-react";
+import { generatePrescriptionPdf } from "@/lib/generatePrescriptionPdf";
 
 interface Prescription {
   id: string;
@@ -37,6 +39,7 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState(true);
   const [doctorId, setDoctorId] = useState<string | null>(null);
+  const [doctorName, setDoctorName] = useState<string>("");
 
   const fetchPrescriptions = async () => {
     setLoading(true);
@@ -55,6 +58,17 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
     }
     
     setDoctorId(doctorData.doctor_id);
+
+    // Get doctor's name
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    
+    if (profileData) {
+      setDoctorName(profileData.full_name);
+    }
 
     const { data, error } = await supabase
       .from("prescriptions")
@@ -148,6 +162,20 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
     }
   };
 
+  const handleDownloadPdf = (prescription: Prescription) => {
+    generatePrescriptionPdf({
+      patientName: prescription.patient_name || "Unknown",
+      patientId: prescription.patient_code || "N/A",
+      doctorName: doctorName,
+      medicationName: prescription.medication_name,
+      dosage: prescription.dosage,
+      frequency: prescription.frequency,
+      startDate: format(new Date(prescription.start_date), "MMM d, yyyy"),
+      endDate: prescription.end_date ? format(new Date(prescription.end_date), "MMM d, yyyy") : undefined,
+      status: prescription.status,
+    });
+  };
+
   if (loading) {
     return <div className="text-muted-foreground">Loading prescriptions...</div>;
   }
@@ -169,6 +197,7 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
             <TableHead>Start Date</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Actions</TableHead>
+            <TableHead>Download</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -200,13 +229,22 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-red-400"
+                      className="text-destructive"
                       onClick={() => updateStatus(prescription.id, "cancelled")}
                     >
                       Cancel
                     </Button>
                   </div>
                 )}
+              </TableCell>
+              <TableCell>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDownloadPdf(prescription)}
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
               </TableCell>
             </TableRow>
           ))}
