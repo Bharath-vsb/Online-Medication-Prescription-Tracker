@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -13,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
 import { format } from "date-fns";
-import { Pill, History } from "lucide-react";
+import { Pill, History, Download } from "lucide-react";
+import { generatePrescriptionPdf } from "@/lib/generatePrescriptionPdf";
 
 interface Prescription {
   id: string;
@@ -33,9 +35,15 @@ interface PatientPrescriptionsProps {
   user: User;
 }
 
+interface PatientInfo {
+  name: string;
+  patientId: string;
+}
+
 const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState(true);
+  const [patientInfo, setPatientInfo] = useState<PatientInfo | null>(null);
 
   useEffect(() => {
     const fetchPrescriptions = async () => {
@@ -49,6 +57,20 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
       if (!patientData) {
         setLoading(false);
         return;
+      }
+
+      // Get patient profile info
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("full_name, patient_id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileData) {
+        setPatientInfo({
+          name: profileData.full_name,
+          patientId: profileData.patient_id || patientData.patient_id,
+        });
       }
 
       const { data, error } = await supabase
@@ -122,6 +144,26 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
     }
   };
 
+  const handleDownloadPdf = (prescription: Prescription) => {
+    if (!patientInfo) {
+      toast.error("Patient information not available");
+      return;
+    }
+
+    generatePrescriptionPdf({
+      patientName: patientInfo.name,
+      patientId: patientInfo.patientId,
+      doctorName: prescription.doctor_name || "Unknown",
+      medicationName: prescription.medication_name,
+      dosage: prescription.dosage,
+      frequency: prescription.frequency,
+      startDate: format(new Date(prescription.start_date), "MMM d, yyyy"),
+      endDate: prescription.end_date ? format(new Date(prescription.end_date), "MMM d, yyyy") : undefined,
+      instructions: prescription.instructions || undefined,
+      status: prescription.status,
+    });
+  };
+
   const PrescriptionTable = ({ items }: { items: Prescription[] }) => {
     if (items.length === 0) {
       return <div className="text-muted-foreground py-8 text-center">No prescriptions found.</div>;
@@ -139,6 +181,7 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
               <TableHead>Start Date</TableHead>
               <TableHead>End Date</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Download</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -158,6 +201,15 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
                   <Badge className={getStatusColor(prescription.status)}>
                     {prescription.status}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadPdf(prescription)}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
