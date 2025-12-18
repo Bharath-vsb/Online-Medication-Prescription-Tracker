@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import ProfileSetup from "@/components/ProfileSetup";
 import PatientPrescriptions from "@/components/patient/PatientPrescriptions";
+import MedicationReminders from "@/components/patient/MedicationReminders";
+import { useReminderNotifications } from "@/hooks/useReminderNotifications";
 
 const PatientDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -24,7 +26,11 @@ const PatientDashboard = () => {
     completed: 0,
     cancelled: 0
   });
+  const [patientId, setPatientId] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Enable in-app notifications
+  useReminderNotifications(patientId);
 
   // Fetch prescription stats
   useEffect(() => {
@@ -39,6 +45,8 @@ const PatientDashboard = () => {
         .maybeSingle();
 
       if (!patientData) return;
+
+      setPatientId(patientData.patient_id);
 
       const { data } = await supabase
         .from("prescriptions")
@@ -173,8 +181,7 @@ const PatientDashboard = () => {
 
           <TabsContent value="reminders">
             <div className="bg-card border border-border rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-foreground mb-4">Medication Reminders</h2>
-              <p className="text-muted-foreground">Reminder setup coming soon. You'll be able to set reminders for your prescription medications here.</p>
+              <MedicationReminders user={user} />
             </div>
           </TabsContent>
 
