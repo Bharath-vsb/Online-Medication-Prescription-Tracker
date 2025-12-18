@@ -5,9 +5,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
 
+// Predefined frequency options with default reminder times
+const FREQUENCY_OPTIONS = [
+  { value: "once_morning", label: "Once a day (Morning)", times: ["08:00"] },
+  { value: "once_afternoon", label: "Once a day (Afternoon)", times: ["13:00"] },
+  { value: "once_night", label: "Once a day (Night)", times: ["20:00"] },
+  { value: "twice_daily", label: "Twice a day (Morning, Night)", times: ["08:00", "20:00"] },
+  { value: "three_times_daily", label: "Three times a day (Morning, Afternoon, Night)", times: ["08:00", "13:00", "20:00"] },
+  { value: "every_8_hours", label: "Every 8 hours", times: ["06:00", "14:00", "22:00"] },
+];
 interface Patient {
   patient_id: string;
   user_id: string;
@@ -225,13 +241,18 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="frequency">Frequency <span className="text-destructive">*</span></Label>
-          <Input
-            id="frequency"
-            value={frequency}
-            onChange={(e) => setFrequency(e.target.value)}
-            placeholder="e.g., Twice daily"
-            required
-          />
+          <Select value={frequency} onValueChange={setFrequency}>
+            <SelectTrigger id="frequency">
+              <SelectValue placeholder="Select frequency" />
+            </SelectTrigger>
+            <SelectContent>
+              {FREQUENCY_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label htmlFor="startDate">Start Date <span className="text-destructive">*</span></Label>

@@ -44,21 +44,28 @@ interface MedicationReminder {
   is_enabled: boolean;
 }
 
-// Frequency to time mapping
-const FREQUENCY_TIME_MAP: Record<string, string[]> = {
-  "1-0-0": ["08:00"],
-  "0-1-0": ["13:00"],
-  "0-0-1": ["20:00"],
-  "1-0-1": ["08:00", "20:00"],
-  "1-1-1": ["08:00", "13:00", "20:00"],
-  "Every 8 hours": ["06:00", "14:00", "22:00"],
-  "every 8 hours": ["06:00", "14:00", "22:00"],
-  "Once daily": ["08:00"],
-  "once daily": ["08:00"],
-  "Twice daily": ["08:00", "20:00"],
-  "twice daily": ["08:00", "20:00"],
-  "Three times daily": ["08:00", "13:00", "20:00"],
-  "three times daily": ["08:00", "13:00", "20:00"],
+// Frequency to time mapping - aligned with doctor frequency options
+const FREQUENCY_TIME_MAP: Record<string, { times: string[], label: string }> = {
+  "once_morning": { times: ["08:00"], label: "Once a day (Morning)" },
+  "once_afternoon": { times: ["13:00"], label: "Once a day (Afternoon)" },
+  "once_night": { times: ["20:00"], label: "Once a day (Night)" },
+  "twice_daily": { times: ["08:00", "20:00"], label: "Twice a day (Morning, Night)" },
+  "three_times_daily": { times: ["08:00", "13:00", "20:00"], label: "Three times a day" },
+  "every_8_hours": { times: ["06:00", "14:00", "22:00"], label: "Every 8 hours" },
+  // Legacy mappings for backward compatibility
+  "1-0-0": { times: ["08:00"], label: "Once daily (Morning)" },
+  "0-1-0": { times: ["13:00"], label: "Once daily (Afternoon)" },
+  "0-0-1": { times: ["20:00"], label: "Once daily (Night)" },
+  "1-0-1": { times: ["08:00", "20:00"], label: "Twice daily" },
+  "1-1-1": { times: ["08:00", "13:00", "20:00"], label: "Three times daily" },
+  "Every 8 hours": { times: ["06:00", "14:00", "22:00"], label: "Every 8 hours" },
+  "every 8 hours": { times: ["06:00", "14:00", "22:00"], label: "Every 8 hours" },
+  "Once daily": { times: ["08:00"], label: "Once daily" },
+  "once daily": { times: ["08:00"], label: "Once daily" },
+  "Twice daily": { times: ["08:00", "20:00"], label: "Twice daily" },
+  "twice daily": { times: ["08:00", "20:00"], label: "Twice daily" },
+  "Three times daily": { times: ["08:00", "13:00", "20:00"], label: "Three times daily" },
+  "three times daily": { times: ["08:00", "13:00", "20:00"], label: "Three times daily" },
 };
 
 const formatTime = (time24: string): string => {
@@ -70,14 +77,13 @@ const formatTime = (time24: string): string => {
 };
 
 const getDefaultTimes = (frequency: string): string[] => {
-  const normalizedFreq = frequency.toLowerCase().trim();
-  for (const [key, times] of Object.entries(FREQUENCY_TIME_MAP)) {
-    if (key.toLowerCase() === normalizedFreq) {
-      return times;
-    }
-  }
-  // Default to morning if frequency not recognized
-  return ["08:00"];
+  const mapping = FREQUENCY_TIME_MAP[frequency] || FREQUENCY_TIME_MAP[frequency.toLowerCase()];
+  return mapping?.times || ["08:00"];
+};
+
+const getFrequencyLabel = (frequency: string): string => {
+  const mapping = FREQUENCY_TIME_MAP[frequency] || FREQUENCY_TIME_MAP[frequency.toLowerCase()];
+  return mapping?.label || frequency;
 };
 
 const MedicationReminders = ({ user }: MedicationRemindersProps) => {
@@ -382,7 +388,7 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Frequency:</span>
-                    <span className="font-medium">{prescription.frequency}</span>
+                    <span className="font-medium">{getFrequencyLabel(prescription.frequency)}</span>
                   </div>
                   {prescription.end_date && (
                     <div className="text-muted-foreground">
