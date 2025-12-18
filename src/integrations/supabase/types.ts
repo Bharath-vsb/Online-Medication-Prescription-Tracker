@@ -41,6 +41,69 @@ export type Database = {
         }
         Relationships: []
       }
+      medication_reminders: {
+        Row: {
+          created_at: string
+          dosage: string
+          end_date: string | null
+          frequency: string
+          is_enabled: boolean
+          medicine_name: string
+          notification_type: string
+          patient_id: string
+          prescription_id: string
+          reminder_id: string
+          reminder_times: string[]
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dosage: string
+          end_date?: string | null
+          frequency: string
+          is_enabled?: boolean
+          medicine_name: string
+          notification_type?: string
+          patient_id: string
+          prescription_id: string
+          reminder_id?: string
+          reminder_times?: string[]
+          start_date?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dosage?: string
+          end_date?: string | null
+          frequency?: string
+          is_enabled?: boolean
+          medicine_name?: string
+          notification_type?: string
+          patient_id?: string
+          prescription_id?: string
+          reminder_id?: string
+          reminder_times?: string[]
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medication_reminders_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "medication_reminders_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medications: {
         Row: {
           category: string | null
