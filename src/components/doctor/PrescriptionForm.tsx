@@ -44,6 +44,7 @@ interface PrescriptionFormProps {
 }
 
 const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
+  const today = new Date().toISOString().split("T")[0];
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -52,10 +53,10 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const [selectedMedication, setSelectedMedication] = useState("");
   const [dosage, setDosage] = useState("");
   const [frequency, setFrequency] = useState("");
-  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
+  const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState("");
   const [instructions, setInstructions] = useState("");
-
+  const [dateError, setDateError] = useState("");
   useEffect(() => {
     const fetchData = async () => {
       // Fetch doctor's doctor_id
@@ -145,6 +146,13 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
     if (!startDate) {
       toast.error("Please select start date");
+      return;
+    }
+
+    // Validate start date is not in the past
+    const currentDate = new Date().toISOString().split("T")[0];
+    if (startDate < currentDate) {
+      toast.error("Past dates are not allowed. Please select today or a future date.");
       return;
     }
 
@@ -260,9 +268,19 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
             id="startDate"
             type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            min={today}
+            onChange={(e) => {
+              const selectedDate = e.target.value;
+              if (selectedDate < today) {
+                setDateError("Past dates are not allowed. Please select today or a future date.");
+              } else {
+                setDateError("");
+                setStartDate(selectedDate);
+              }
+            }}
             required
           />
+          {dateError && <p className="text-destructive text-sm mt-1">{dateError}</p>}
         </div>
         <div>
           <Label htmlFor="endDate">End Date <span className="text-destructive">*</span></Label>
@@ -270,6 +288,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
             id="endDate"
             type="date"
             value={endDate}
+            min={startDate || today}
             onChange={(e) => setEndDate(e.target.value)}
             required
           />
