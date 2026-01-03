@@ -41,6 +41,51 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory: {
+        Row: {
+          batch_number: string
+          category: string | null
+          created_at: string
+          created_by: string | null
+          expiry_date: string
+          id: string
+          manufacturer: string | null
+          medicine_name: string
+          min_stock_threshold: number
+          stock_quantity: number
+          unit_price: number | null
+          updated_at: string
+        }
+        Insert: {
+          batch_number: string
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          expiry_date: string
+          id?: string
+          manufacturer?: string | null
+          medicine_name: string
+          min_stock_threshold?: number
+          stock_quantity?: number
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Update: {
+          batch_number?: string
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          expiry_date?: string
+          id?: string
+          manufacturer?: string | null
+          medicine_name?: string
+          min_stock_threshold?: number
+          stock_quantity?: number
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       medication_reminders: {
         Row: {
           created_at: string

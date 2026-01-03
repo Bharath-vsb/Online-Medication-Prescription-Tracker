@@ -6,53 +6,27 @@ import { User } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Pill, 
-  FileText, 
   Package, 
   AlertTriangle, 
-  Clock,
-  CheckCircle,
+  Calendar,
   LogOut,
   User as UserIcon
 } from "lucide-react";
 import ProfileSetup from "@/components/ProfileSetup";
+import InventoryManagement from "@/components/pharmacist/InventoryManagement";
 
-const features = [
-  {
-    title: "Pending Prescriptions",
-    description: "Process and dispense pending prescriptions",
-    icon: FileText,
-    color: "from-cyan-500 to-cyan-600",
-  },
-  {
-    title: "Inventory",
-    description: "Manage medication stock and inventory",
-    icon: Package,
-    color: "from-teal-500 to-teal-600",
-  },
-  {
-    title: "Dispensed Today",
-    description: "View today's dispensed medications",
-    icon: CheckCircle,
-    color: "from-emerald-500 to-emerald-600",
-  },
-  {
-    title: "Low Stock Alerts",
-    description: "View medications with low stock",
-    icon: AlertTriangle,
-    color: "from-amber-500 to-amber-600",
-  },
-];
-
-const stats = [
-  { label: "Pending Orders", value: "18", icon: Clock },
-  { label: "Dispensed Today", value: "45", icon: CheckCircle },
-  { label: "Low Stock Items", value: "7", icon: AlertTriangle },
-];
+interface InventoryStats {
+  total: number;
+  lowStock: number;
+  expired: number;
+  expiringSoon: number;
+}
 
 const PharmacistDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("inventory");
+  const [stats, setStats] = useState<InventoryStats>({ total: 0, lowStock: 0, expired: 0, expiringSoon: 0 });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,6 +47,38 @@ const PharmacistDashboard = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchStats();
+    }
+  }, [user]);
+
+  const fetchStats = async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      const thirtyDaysStr = thirtyDaysFromNow.toISOString().split("T")[0];
+
+      const { data, error } = await supabase
+        .from("inventory")
+        .select("*");
+
+      if (error) throw error;
+
+      const total = data?.length || 0;
+      const lowStock = data?.filter(item => item.stock_quantity <= item.min_stock_threshold).length || 0;
+      const expired = data?.filter(item => item.expiry_date < today).length || 0;
+      const expiringSoon = data?.filter(item => 
+        item.expiry_date >= today && item.expiry_date <= thirtyDaysStr
+      ).length || 0;
+
+      setStats({ total, lowStock, expired, expiringSoon });
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
 
   if (loading) {
     return (
@@ -116,29 +122,51 @@ const PharmacistDashboard = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-card border border-border rounded-xl p-6 flex items-center gap-4"
-            >
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                <stat.icon className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-muted-foreground text-sm">{stat.label}</p>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-card border border-border rounded-xl p-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Package className="w-6 h-6 text-primary" />
             </div>
-          ))}
+            <div>
+              <p className="text-3xl font-bold text-foreground">{stats.total}</p>
+              <p className="text-muted-foreground text-sm">Total Medicines</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500/10 rounded-lg flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-3xl font-bold text-foreground">{stats.lowStock}</p>
+              <p className="text-muted-foreground text-sm">Low Stock</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-destructive/10 rounded-lg flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-destructive" />
+            </div>
+            <div>
+              <p className="text-3xl font-bold text-foreground">{stats.expired}</p>
+              <p className="text-muted-foreground text-sm">Expired</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-orange-500" />
+            </div>
+            <div>
+              <p className="text-3xl font-bold text-foreground">{stats.expiringSoon}</p>
+              <p className="text-muted-foreground text-sm">Expiring Soon</p>
+            </div>
+          </div>
         </div>
 
         {/* Tabs Section */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-6">
-            <TabsTrigger value="dashboard" className="flex items-center gap-2">
-              <Pill className="w-4 h-4" />
-              Dashboard
+            <TabsTrigger value="inventory" className="flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              Inventory
             </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <UserIcon className="w-4 h-4" />
@@ -146,22 +174,8 @@ const PharmacistDashboard = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dashboard">
-            <h2 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {features.map((feature) => (
-                <button
-                  key={feature.title}
-                  className="group bg-card border border-border rounded-xl p-6 text-left transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:border-primary/50 hover:-translate-y-1"
-                >
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                    <feature.icon className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-1">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm">{feature.description}</p>
-                </button>
-              ))}
-            </div>
+          <TabsContent value="inventory">
+            <InventoryManagement />
           </TabsContent>
 
           <TabsContent value="profile">
