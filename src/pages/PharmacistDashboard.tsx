@@ -10,10 +10,12 @@ import {
   AlertTriangle, 
   Calendar,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  ClipboardList
 } from "lucide-react";
 import ProfileSetup from "@/components/ProfileSetup";
 import InventoryManagement from "@/components/pharmacist/InventoryManagement";
+import PatientPrescriptionViewer from "@/components/pharmacist/PatientPrescriptionViewer";
 
 interface InventoryStats {
   total: number;
@@ -51,6 +53,26 @@ const PharmacistDashboard = () => {
   useEffect(() => {
     if (user) {
       fetchStats();
+      
+      // Subscribe to realtime inventory updates for stats
+      const channel = supabase
+        .channel('inventory-stats')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'inventory'
+          },
+          () => {
+            fetchStats();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 
@@ -168,6 +190,10 @@ const PharmacistDashboard = () => {
               <Package className="w-4 h-4" />
               Inventory
             </TabsTrigger>
+            <TabsTrigger value="patients" className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4" />
+              Patient Prescriptions
+            </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <UserIcon className="w-4 h-4" />
               Profile
@@ -176,6 +202,10 @@ const PharmacistDashboard = () => {
 
           <TabsContent value="inventory">
             <InventoryManagement />
+          </TabsContent>
+
+          <TabsContent value="patients">
+            <PatientPrescriptionViewer />
           </TabsContent>
 
           <TabsContent value="profile">

@@ -82,6 +82,26 @@ const InventoryManagement = () => {
 
   useEffect(() => {
     fetchInventory();
+
+    // Subscribe to realtime inventory updates
+    const channel = supabase
+      .channel('inventory-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory'
+        },
+        () => {
+          fetchInventory();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchInventory = async () => {
@@ -146,7 +166,6 @@ const InventoryManagement = () => {
       setIsDialogOpen(false);
       setEditingItem(null);
       setFormData(defaultFormData);
-      fetchInventory();
     } catch (error) {
       console.error("Error saving medicine:", error);
       toast.error("Failed to save medicine");
@@ -181,7 +200,6 @@ const InventoryManagement = () => {
 
       if (error) throw error;
       toast.success("Medicine deleted successfully");
-      fetchInventory();
     } catch (error) {
       console.error("Error deleting medicine:", error);
       toast.error("Failed to delete medicine");
@@ -221,7 +239,7 @@ const InventoryManagement = () => {
               <Calendar className="w-6 h-6 text-destructive" />
               <div>
                 <p className="font-semibold text-destructive">{expiredCount} Expired Items</p>
-                <p className="text-sm text-muted-foreground">Disposal required</p>
+                <p className="text-sm text-muted-foreground">Dispose immediately - Cannot be prescribed</p>
               </div>
             </div>
           )}
@@ -230,7 +248,7 @@ const InventoryManagement = () => {
               <Calendar className="w-6 h-6 text-orange-500" />
               <div>
                 <p className="font-semibold text-orange-600">{expiringSoonCount} Expiring Soon</p>
-                <p className="text-sm text-muted-foreground">Within 30 days</p>
+                <p className="text-sm text-muted-foreground">Within 30 days - Prioritize usage</p>
               </div>
             </div>
           )}
@@ -401,7 +419,7 @@ const InventoryManagement = () => {
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {isExpired(item) && (
-                        <Badge variant="destructive">Expired</Badge>
+                        <Badge variant="destructive">Expired - Dispose</Badge>
                       )}
                       {isExpiringSoon(item) && (
                         <Badge className="bg-orange-500">Expiring Soon</Badge>

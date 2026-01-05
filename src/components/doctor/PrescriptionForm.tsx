@@ -14,16 +14,18 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
+import { AlertTriangle, Package } from "lucide-react";
 
 // Predefined frequency options with default reminder times
 const FREQUENCY_OPTIONS = [
-  { value: "once_morning", label: "Once a day (Morning)", times: ["08:00"] },
-  { value: "once_afternoon", label: "Once a day (Afternoon)", times: ["13:00"] },
-  { value: "once_night", label: "Once a day (Night)", times: ["20:00"] },
-  { value: "twice_daily", label: "Twice a day (Morning, Night)", times: ["08:00", "20:00"] },
-  { value: "three_times_daily", label: "Three times a day (Morning, Afternoon, Night)", times: ["08:00", "13:00", "20:00"] },
-  { value: "every_8_hours", label: "Every 8 hours", times: ["06:00", "14:00", "22:00"] },
+  { value: "once_morning", label: "Once a day (Morning)", times: ["08:00"], doses: 1 },
+  { value: "once_afternoon", label: "Once a day (Afternoon)", times: ["13:00"], doses: 1 },
+  { value: "once_night", label: "Once a day (Night)", times: ["20:00"], doses: 1 },
+  { value: "twice_daily", label: "Twice a day (Morning, Night)", times: ["08:00", "20:00"], doses: 2 },
+  { value: "three_times_daily", label: "Three times a day (Morning, Afternoon, Night)", times: ["08:00", "13:00", "20:00"], doses: 3 },
+  { value: "every_8_hours", label: "Every 8 hours", times: ["06:00", "14:00", "22:00"], doses: 3 },
 ];
+
 interface Patient {
   patient_id: string;
   user_id: string;
@@ -31,11 +33,13 @@ interface Patient {
   patient_code: string | null;
 }
 
-interface Medication {
+interface InventoryItem {
   id: string;
-  name: string;
+  medicine_name: string;
+  batch_number: string;
+  expiry_date: string;
+  stock_quantity: number;
   category: string | null;
-  default_dosage: string | null;
 }
 
 interface PrescriptionFormProps {
@@ -47,73 +51,132 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const today = new Date().toISOString().split("T")[0];
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [medications, setMedications] = useState<Medication[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [doctorId, setDoctorId] = useState<string | null>(null);
   const [selectedPatient, setSelectedPatient] = useState("");
-  const [selectedMedication, setSelectedMedication] = useState("");
+  const [selectedMedicine, setSelectedMedicine] = useState("");
   const [dosage, setDosage] = useState("");
   const [frequency, setFrequency] = useState("");
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState("");
   const [instructions, setInstructions] = useState("");
   const [dateError, setDateError] = useState("");
+  const [stockWarning, setStockWarning] = useState("");
+
   useEffect(() => {
-    const fetchData = async () => {
-      // Fetch doctor's doctor_id
-      const { data: doctorData } = await supabase
-        .from("doctors")
-        .select("doctor_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (doctorData) {
-        setDoctorId(doctorData.doctor_id);
-      }
-
-      // Fetch patients with their profiles
-      const { data: patientsData } = await supabase
-        .from("patients")
-        .select("patient_id, user_id");
-
-      if (patientsData && patientsData.length > 0) {
-        const userIds = patientsData.map((p) => p.user_id);
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, full_name, patient_id")
-          .in("id", userIds);
-
-        if (profiles) {
-          const profileMap = new Map(profiles.map((p) => [p.id, { name: p.full_name, code: p.patient_id }]));
-          const patientsWithNames = patientsData.map((p) => ({
-            patient_id: p.patient_id,
-            user_id: p.user_id,
-            full_name: profileMap.get(p.user_id)?.name || "Unknown",
-            patient_code: profileMap.get(p.user_id)?.code || null,
-          }));
-          setPatients(patientsWithNames);
-        }
-      }
-
-      // Fetch medications
-      const { data: medsData } = await supabase
-        .from("medications")
-        .select("id, name, category, default_dosage")
-        .order("category", { ascending: true });
-
-      if (medsData) {
-        setMedications(medsData);
-      }
-    };
-
     fetchData();
+    
+    // Subscribe to realtime inventory updates
+    const channel = supabase
+      .channel('inventory-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory'
+        },
+        () => {
+          fetchInventory();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user.id]);
 
-  const handleMedicationChange = (medicationId: string) => {
-    setSelectedMedication(medicationId);
-    const med = medications.find((m) => m.id === medicationId);
-    if (med?.default_dosage) {
-      setDosage(med.default_dosage);
+  const fetchData = async () => {
+    // Fetch doctor's doctor_id
+    const { data: doctorData } = await supabase
+      .from("doctors")
+      .select("doctor_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (doctorData) {
+      setDoctorId(doctorData.doctor_id);
     }
+
+    // Fetch patients with their profiles
+    const { data: patientsData } = await supabase
+      .from("patients")
+      .select("patient_id, user_id");
+
+    if (patientsData && patientsData.length > 0) {
+      const userIds = patientsData.map((p) => p.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, patient_id")
+        .in("id", userIds);
+
+      if (profiles) {
+        const profileMap = new Map(profiles.map((p) => [p.id, { name: p.full_name, code: p.patient_id }]));
+        const patientsWithNames = patientsData.map((p) => ({
+          patient_id: p.patient_id,
+          user_id: p.user_id,
+          full_name: profileMap.get(p.user_id)?.name || "Unknown",
+          patient_code: profileMap.get(p.user_id)?.code || null,
+        }));
+        setPatients(patientsWithNames);
+      }
+    }
+
+    fetchInventory();
+  };
+
+  const fetchInventory = async () => {
+    // Fetch only available inventory (not expired, has stock)
+    const { data: inventoryData } = await supabase
+      .from("inventory")
+      .select("id, medicine_name, batch_number, expiry_date, stock_quantity, category")
+      .gt("expiry_date", today)
+      .gt("stock_quantity", 0)
+      .order("medicine_name");
+
+    if (inventoryData) {
+      setInventory(inventoryData);
+    }
+  };
+
+  const calculateRequiredQuantity = (freq: string, start: string, end: string): number => {
+    if (!start || !end) return 0;
+    const startD = new Date(start);
+    const endD = new Date(end);
+    const days = Math.floor((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const freqOption = FREQUENCY_OPTIONS.find(f => f.value === freq);
+    const dosesPerDay = freqOption?.doses || 1;
+    return days * dosesPerDay;
+  };
+
+  const validateStock = () => {
+    if (!selectedMedicine || !frequency || !startDate || !endDate) {
+      setStockWarning("");
+      return;
+    }
+
+    const medicine = inventory.find(m => m.id === selectedMedicine);
+    if (!medicine) {
+      setStockWarning("");
+      return;
+    }
+
+    const required = calculateRequiredQuantity(frequency, startDate, endDate);
+    if (medicine.stock_quantity < required) {
+      setStockWarning(`Insufficient stock. Required: ${required}, Available: ${medicine.stock_quantity}`);
+    } else {
+      setStockWarning("");
+    }
+  };
+
+  useEffect(() => {
+    validateStock();
+  }, [selectedMedicine, frequency, startDate, endDate]);
+
+  const handleMedicineChange = (medicineId: string) => {
+    setSelectedMedicine(medicineId);
+    setStockWarning("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,8 +192,14 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
-    if (!selectedMedication) {
-      toast.error("Please select a medication");
+    if (!selectedMedicine) {
+      toast.error("Please select a medicine");
+      return;
+    }
+
+    const medicine = inventory.find(m => m.id === selectedMedicine);
+    if (!medicine) {
+      toast.error("Selected medicine not found in inventory");
       return;
     }
 
@@ -140,7 +209,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     }
 
     if (!frequency.trim()) {
-      toast.error("Please enter frequency");
+      toast.error("Please select frequency");
       return;
     }
 
@@ -149,7 +218,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
-    // Validate start date is not in the past
     const currentDate = new Date().toISOString().split("T")[0];
     if (startDate < currentDate) {
       toast.error("Past dates are not allowed. Please select today or a future date.");
@@ -161,12 +229,18 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
+    // Validate stock availability
+    const requiredQty = calculateRequiredQuantity(frequency, startDate, endDate);
+    if (medicine.stock_quantity < requiredQty) {
+      toast.error(`Insufficient stock. Required: ${requiredQty}, Available: ${medicine.stock_quantity}`);
+      return;
+    }
+
     if (!instructions.trim()) {
       toast.error("Please enter instructions");
       return;
     }
 
-    const medication = medications.find((m) => m.id === selectedMedication);
     const patient = patients.find((p) => p.patient_id === selectedPatient);
 
     setLoading(true);
@@ -176,7 +250,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       doctor_id: user.id,
       patient_ref: selectedPatient,
       doctor_ref: doctorId,
-      medication_name: medication?.name || "",
+      medication_name: medicine.medicine_name,
       dosage: dosage.trim(),
       frequency: frequency.trim(),
       start_date: startDate,
@@ -188,19 +262,31 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
     if (error) {
       console.error("Prescription error:", error);
-      toast.error("Failed to create prescription");
+      if (error.message.includes("Insufficient stock")) {
+        toast.error("Insufficient stock or medicine not available. Please select a different medicine.");
+      } else {
+        toast.error("Failed to create prescription");
+      }
     } else {
-      toast.success("Prescription created successfully");
+      toast.success("Prescription created successfully. Stock has been updated.");
       setSelectedPatient("");
-      setSelectedMedication("");
+      setSelectedMedicine("");
       setDosage("");
       setFrequency("");
       setStartDate(new Date().toISOString().split("T")[0]);
       setEndDate("");
       setInstructions("");
+      setStockWarning("");
       onSuccess();
     }
   };
+
+  const getSelectedMedicineInfo = () => {
+    if (!selectedMedicine) return null;
+    return inventory.find(m => m.id === selectedMedicine);
+  };
+
+  const selectedMedicineInfo = getSelectedMedicineInfo();
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -221,18 +307,24 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="medication">Select Medication <span className="text-destructive">*</span></Label>
+          <Label htmlFor="medicine">Select Medicine <span className="text-destructive">*</span></Label>
           <SearchableSelect
-            options={medications.map((med) => ({
-              value: med.id,
-              label: `${med.name}${med.category ? ` (${med.category})` : ""}`,
+            options={inventory.map((item) => ({
+              value: item.id,
+              label: `${item.medicine_name} (Stock: ${item.stock_quantity})`,
             }))}
-            value={selectedMedication}
-            onValueChange={handleMedicationChange}
-            placeholder="Select a medication"
-            searchPlaceholder="Search medications..."
-            emptyMessage="No medications found."
+            value={selectedMedicine}
+            onValueChange={handleMedicineChange}
+            placeholder="Select from inventory"
+            searchPlaceholder="Search medicines..."
+            emptyMessage="No medicines available in inventory."
           />
+          {inventory.length === 0 && (
+            <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+              <Package className="w-4 h-4" />
+              No medicines available. Pharmacist needs to add stock.
+            </p>
+          )}
         </div>
         <div>
           <Label htmlFor="dosage">Dosage <span className="text-destructive">*</span></Label>
@@ -245,6 +337,24 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
           />
         </div>
       </div>
+
+      {selectedMedicineInfo && (
+        <div className="bg-muted/50 border border-border rounded-lg p-3 text-sm">
+          <div className="flex items-center gap-4">
+            <span><strong>Batch:</strong> {selectedMedicineInfo.batch_number}</span>
+            <span><strong>Expires:</strong> {new Date(selectedMedicineInfo.expiry_date).toLocaleDateString()}</span>
+            <span><strong>Available:</strong> {selectedMedicineInfo.stock_quantity} units</span>
+            {selectedMedicineInfo.category && <span><strong>Category:</strong> {selectedMedicineInfo.category}</span>}
+          </div>
+        </div>
+      )}
+
+      {stockWarning && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 flex items-center gap-2 text-destructive">
+          <AlertTriangle className="w-5 h-5" />
+          <span className="text-sm">{stockWarning}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
@@ -307,7 +417,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
         />
       </div>
 
-      <Button type="submit" disabled={loading} className="w-full">
+      <Button type="submit" disabled={loading || !!stockWarning} className="w-full">
         {loading ? "Creating..." : "Create Prescription"}
       </Button>
     </form>
