@@ -24,6 +24,7 @@ interface Prescription {
   frequency: string;
   start_date: string;
   end_date: string | null;
+  duration_days: number | null;
   status: "active" | "completed" | "cancelled";
   created_at: string;
   patient_name?: string;
@@ -43,6 +44,9 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
 
   const fetchPrescriptions = async () => {
     setLoading(true);
+
+    // Auto-complete expired prescriptions
+    await supabase.rpc("auto_complete_expired_prescriptions");
     
     // First get the doctor's doctor_id
     const { data: doctorData } = await supabase
@@ -135,7 +139,13 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
     fetchPrescriptions();
   }, [user.id, refreshTrigger]);
 
-  const updateStatus = async (id: string, status: "completed" | "cancelled") => {
+  const updateStatus = async (id: string, status: "completed" | "cancelled", prescription: Prescription) => {
+    // Prevent modifying completed prescriptions
+    if (prescription.status === "completed") {
+      toast.error("Cannot modify completed prescriptions");
+      return;
+    }
+
     const { error } = await supabase
       .from("prescriptions")
       .update({ status })
@@ -194,7 +204,8 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
             <TableHead>Medication</TableHead>
             <TableHead>Dosage</TableHead>
             <TableHead>Frequency</TableHead>
-            <TableHead>Start Date</TableHead>
+            <TableHead>Duration</TableHead>
+            <TableHead>End Date</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Actions</TableHead>
             <TableHead>Download</TableHead>
@@ -210,7 +221,12 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
               <TableCell>{prescription.medication_name}</TableCell>
               <TableCell>{prescription.dosage}</TableCell>
               <TableCell>{prescription.frequency}</TableCell>
-              <TableCell>{format(new Date(prescription.start_date), "MMM d, yyyy")}</TableCell>
+              <TableCell>{prescription.duration_days ? `${prescription.duration_days} days` : "-"}</TableCell>
+              <TableCell>
+                {prescription.end_date 
+                  ? format(new Date(prescription.end_date), "MMM d, yyyy")
+                  : "-"}
+              </TableCell>
               <TableCell>
                 <Badge className={getStatusColor(prescription.status)}>
                   {prescription.status}
@@ -222,7 +238,7 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => updateStatus(prescription.id, "completed")}
+                      onClick={() => updateStatus(prescription.id, "completed", prescription)}
                     >
                       Complete
                     </Button>
@@ -230,7 +246,7 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
                       size="sm"
                       variant="outline"
                       className="text-destructive"
-                      onClick={() => updateStatus(prescription.id, "cancelled")}
+                      onClick={() => updateStatus(prescription.id, "cancelled", prescription)}
                     >
                       Cancel
                     </Button>

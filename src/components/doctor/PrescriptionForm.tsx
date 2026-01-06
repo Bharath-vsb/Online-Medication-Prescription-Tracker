@@ -58,10 +58,23 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const [dosage, setDosage] = useState("");
   const [frequency, setFrequency] = useState("");
   const [startDate, setStartDate] = useState(today);
+  const [durationDays, setDurationDays] = useState<number | "">("");
   const [endDate, setEndDate] = useState("");
   const [instructions, setInstructions] = useState("");
   const [dateError, setDateError] = useState("");
   const [stockWarning, setStockWarning] = useState("");
+
+  // Auto-calculate end date when start date or duration changes
+  useEffect(() => {
+    if (startDate && durationDays && typeof durationDays === "number" && durationDays > 0) {
+      const start = new Date(startDate);
+      const end = new Date(start);
+      end.setDate(start.getDate() + durationDays - 1);
+      setEndDate(end.toISOString().split("T")[0]);
+    } else {
+      setEndDate("");
+    }
+  }, [startDate, durationDays]);
 
   useEffect(() => {
     fetchData();
@@ -140,18 +153,15 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     }
   };
 
-  const calculateRequiredQuantity = (freq: string, start: string, end: string): number => {
-    if (!start || !end) return 0;
-    const startD = new Date(start);
-    const endD = new Date(end);
-    const days = Math.floor((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const calculateRequiredQuantity = (freq: string, duration: number): number => {
+    if (!duration || duration <= 0) return 0;
     const freqOption = FREQUENCY_OPTIONS.find(f => f.value === freq);
     const dosesPerDay = freqOption?.doses || 1;
-    return days * dosesPerDay;
+    return duration * dosesPerDay;
   };
 
   const validateStock = () => {
-    if (!selectedMedicine || !frequency || !startDate || !endDate) {
+    if (!selectedMedicine || !frequency || !durationDays) {
       setStockWarning("");
       return;
     }
@@ -162,7 +172,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
-    const required = calculateRequiredQuantity(frequency, startDate, endDate);
+    const required = calculateRequiredQuantity(frequency, typeof durationDays === "number" ? durationDays : 0);
     if (medicine.stock_quantity < required) {
       setStockWarning(`Insufficient stock. Required: ${required}, Available: ${medicine.stock_quantity}`);
     } else {
@@ -172,7 +182,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
   useEffect(() => {
     validateStock();
-  }, [selectedMedicine, frequency, startDate, endDate]);
+  }, [selectedMedicine, frequency, durationDays]);
 
   const handleMedicineChange = (medicineId: string) => {
     setSelectedMedicine(medicineId);
@@ -224,13 +234,13 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
-    if (!endDate) {
-      toast.error("Please select end date");
+    if (!durationDays || typeof durationDays !== "number" || durationDays <= 0) {
+      toast.error("Please enter a valid duration (number of days)");
       return;
     }
 
     // Validate stock availability
-    const requiredQty = calculateRequiredQuantity(frequency, startDate, endDate);
+    const requiredQty = calculateRequiredQuantity(frequency, durationDays);
     if (medicine.stock_quantity < requiredQty) {
       toast.error(`Insufficient stock. Required: ${requiredQty}, Available: ${medicine.stock_quantity}`);
       return;
@@ -255,6 +265,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       frequency: frequency.trim(),
       start_date: startDate,
       end_date: endDate,
+      duration_days: durationDays,
       instructions: instructions.trim(),
     });
 
@@ -274,6 +285,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       setDosage("");
       setFrequency("");
       setStartDate(new Date().toISOString().split("T")[0]);
+      setDurationDays("");
       setEndDate("");
       setInstructions("");
       setStockWarning("");
@@ -356,7 +368,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
           <Label htmlFor="frequency">Frequency <span className="text-destructive">*</span></Label>
           <Select value={frequency} onValueChange={setFrequency}>
@@ -393,14 +405,25 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
           {dateError && <p className="text-destructive text-sm mt-1">{dateError}</p>}
         </div>
         <div>
-          <Label htmlFor="endDate">End Date <span className="text-destructive">*</span></Label>
+          <Label htmlFor="durationDays">Duration (Days) <span className="text-destructive">*</span></Label>
+          <Input
+            id="durationDays"
+            type="number"
+            min={1}
+            value={durationDays}
+            onChange={(e) => setDurationDays(e.target.value ? parseInt(e.target.value) : "")}
+            placeholder="e.g., 7"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="endDate">End Date (Auto-calculated)</Label>
           <Input
             id="endDate"
             type="date"
             value={endDate}
-            min={startDate || today}
-            onChange={(e) => setEndDate(e.target.value)}
-            required
+            disabled
+            className="bg-muted"
           />
         </div>
       </div>
