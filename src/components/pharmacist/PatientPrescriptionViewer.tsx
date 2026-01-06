@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Search, User, Pill, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, User, Pill, ShoppingCart, AlertTriangle } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -13,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 
 interface Patient {
   patient_id: string;
@@ -28,10 +30,26 @@ interface Prescription {
   frequency: string;
   start_date: string;
   end_date: string | null;
+  duration_days: number | null;
   status: "active" | "completed" | "cancelled";
   instructions: string | null;
   doctor_name?: string;
 }
+
+interface InventoryItem {
+  id: string;
+  medicine_name: string;
+  stock_quantity: number;
+}
+
+const FREQUENCY_DOSES: Record<string, number> = {
+  once_morning: 1,
+  once_afternoon: 1,
+  once_night: 1,
+  twice_daily: 2,
+  three_times_daily: 3,
+  every_8_hours: 3,
+};
 
 const FREQUENCY_LABELS: Record<string, string> = {
   once_morning: "Once a day (Morning)",
@@ -48,10 +66,13 @@ const PatientPrescriptionViewer = () => {
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sellingId, setSellingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPatients();
+    fetchInventory();
   }, []);
 
   useEffect(() => {
@@ -94,9 +115,21 @@ const PatientPrescriptionViewer = () => {
     }
   };
 
+  const fetchInventory = async () => {
+    const { data } = await supabase
+      .from("inventory")
+      .select("id, medicine_name, stock_quantity");
+    if (data) {
+      setInventory(data);
+    }
+  };
+
   const fetchPrescriptions = async (patient: Patient) => {
     setLoading(true);
     setSelectedPatient(patient);
+
+    // First call the auto-complete function to update expired prescriptions
+    await supabase.rpc("auto_complete_expired_prescriptions");
 
     const { data, error } = await supabase
       .from("prescriptions")
@@ -107,11 +140,13 @@ const PatientPrescriptionViewer = () => {
         frequency,
         start_date,
         end_date,
+        duration_days,
         status,
         instructions,
         doctor_id
       `)
       .eq("patient_ref", patient.patient_id)
+      .eq("status", "active") // Only active prescriptions
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -135,22 +170,120 @@ const PatientPrescriptionViewer = () => {
       setPrescriptions(prescriptionsWithDoctors);
     }
 
+    // Refresh inventory
+    await fetchInventory();
     setLoading(false);
     setSearchTerm("");
     setFilteredPatients([]);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-500">Active</Badge>;
-      case "completed":
-        return <Badge variant="secondary">Completed</Badge>;
-      case "cancelled":
-        return <Badge variant="destructive">Cancelled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  const calculateTotalQuantity = (prescription: Prescription): number => {
+    const dosesPerDay = FREQUENCY_DOSES[prescription.frequency] || 1;
+    
+    // Use duration_days if available
+    if (prescription.duration_days) {
+      return prescription.duration_days * dosesPerDay;
     }
+    
+    // Fallback to calculating from dates
+    if (prescription.start_date && prescription.end_date) {
+      const start = new Date(prescription.start_date);
+      const end = new Date(prescription.end_date);
+      const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      return days * dosesPerDay;
+    }
+    
+    return 0;
+  };
+
+  const getDurationDays = (prescription: Prescription): number => {
+    if (prescription.duration_days) {
+      return prescription.duration_days;
+    }
+    
+    if (prescription.start_date && prescription.end_date) {
+      const start = new Date(prescription.start_date);
+      const end = new Date(prescription.end_date);
+      return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
+    
+    return 0;
+  };
+
+  const getAvailableStock = (medicineName: string): number => {
+    const item = inventory.find(
+      (inv) => inv.medicine_name.toLowerCase() === medicineName.toLowerCase()
+    );
+    return item?.stock_quantity || 0;
+  };
+
+  const handleSell = async (prescription: Prescription) => {
+    const totalQuantity = calculateTotalQuantity(prescription);
+    const availableStock = getAvailableStock(prescription.medication_name);
+
+    if (availableStock < totalQuantity) {
+      toast.error(`Insufficient stock. Required: ${totalQuantity}, Available: ${availableStock}`);
+      return;
+    }
+
+    setSellingId(prescription.id);
+
+    try {
+      // Find inventory item and deduct stock
+      const { data: invItem } = await supabase
+        .from("inventory")
+        .select("id, stock_quantity")
+        .ilike("medicine_name", prescription.medication_name)
+        .gt("stock_quantity", 0)
+        .order("expiry_date", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!invItem) {
+        toast.error("Medicine not found in inventory");
+        setSellingId(null);
+        return;
+      }
+
+      // Deduct stock
+      const { error: updateError } = await supabase
+        .from("inventory")
+        .update({ 
+          stock_quantity: invItem.stock_quantity - totalQuantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", invItem.id);
+
+      if (updateError) {
+        toast.error("Failed to update inventory");
+        setSellingId(null);
+        return;
+      }
+
+      // Mark prescription as completed after selling
+      const { error: prescError } = await supabase
+        .from("prescriptions")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", prescription.id);
+
+      if (prescError) {
+        toast.error("Failed to update prescription status");
+        setSellingId(null);
+        return;
+      }
+
+      toast.success(`Sold ${totalQuantity} units of ${prescription.medication_name}`);
+      
+      // Refresh data
+      if (selectedPatient) {
+        await fetchPrescriptions(selectedPatient);
+      }
+    } catch (error) {
+      console.error("Sell error:", error);
+      toast.error("An error occurred while processing the sale");
+    }
+
+    setSellingId(null);
   };
 
   return (
@@ -229,49 +362,73 @@ const PatientPrescriptionViewer = () => {
             ) : prescriptions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground flex flex-col items-center gap-2">
                 <Pill className="w-12 h-12 opacity-50" />
-                <p>No prescriptions found for this patient</p>
+                <p>No active prescriptions found for this patient</p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Medicine</TableHead>
-                    <TableHead>Dosage</TableHead>
                     <TableHead>Frequency</TableHead>
-                    <TableHead>Duration</TableHead>
+                    <TableHead>Duration (Days)</TableHead>
                     <TableHead>Prescribed By</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Total Qty</TableHead>
+                    <TableHead>Stock</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {prescriptions.map((prescription) => (
-                    <TableRow key={prescription.id}>
-                      <TableCell className="font-medium">
-                        {prescription.medication_name}
-                      </TableCell>
-                      <TableCell>{prescription.dosage}</TableCell>
-                      <TableCell>
-                        {FREQUENCY_LABELS[prescription.frequency] ||
-                          prescription.frequency}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Calendar className="w-4 h-4 text-muted-foreground" />
-                          {new Date(prescription.start_date).toLocaleDateString()}
-                          {prescription.end_date && (
-                            <>
-                              {" - "}
-                              {new Date(prescription.end_date).toLocaleDateString()}
-                            </>
+                  {prescriptions.map((prescription) => {
+                    const totalQty = calculateTotalQuantity(prescription);
+                    const duration = getDurationDays(prescription);
+                    const availableStock = getAvailableStock(prescription.medication_name);
+                    const insufficientStock = availableStock < totalQty;
+
+                    return (
+                      <TableRow key={prescription.id}>
+                        <TableCell className="font-medium">
+                          {prescription.medication_name}
+                        </TableCell>
+                        <TableCell>
+                          {FREQUENCY_LABELS[prescription.frequency] ||
+                            prescription.frequency}
+                        </TableCell>
+                        <TableCell>{duration} days</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {prescription.doctor_name}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{totalQty} units</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={insufficientStock ? "destructive" : "outline"}
+                            className={insufficientStock ? "" : "bg-green-500/10 text-green-600 border-green-500/30"}
+                          >
+                            {availableStock}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {insufficientStock ? (
+                            <div className="flex items-center gap-1 text-destructive text-sm">
+                              <AlertTriangle className="w-4 h-4" />
+                              Low Stock
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => handleSell(prescription)}
+                              disabled={sellingId === prescription.id}
+                              className="flex items-center gap-1"
+                            >
+                              <ShoppingCart className="w-4 h-4" />
+                              {sellingId === prescription.id ? "Selling..." : "Sell"}
+                            </Button>
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {prescription.doctor_name}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(prescription.status)}</TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
 import { format } from "date-fns";
-import { Pill, History, Download } from "lucide-react";
+import { Pill, History, Download, CheckCircle } from "lucide-react";
 import { generatePrescriptionPdf } from "@/lib/generatePrescriptionPdf";
 
 interface Prescription {
@@ -25,6 +25,7 @@ interface Prescription {
   frequency: string;
   start_date: string;
   end_date: string | null;
+  duration_days: number | null;
   instructions: string | null;
   status: "active" | "completed" | "cancelled";
   created_at: string;
@@ -39,6 +40,15 @@ interface PatientInfo {
   name: string;
   patientId: string;
 }
+
+const FREQUENCY_LABELS: Record<string, string> = {
+  once_morning: "Once a day (Morning)",
+  once_afternoon: "Once a day (Afternoon)",
+  once_night: "Once a day (Night)",
+  twice_daily: "Twice a day",
+  three_times_daily: "Three times a day",
+  every_8_hours: "Every 8 hours",
+};
 
 const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -72,6 +82,9 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
           patientId: profileData.patient_id || patientData.patient_id,
         });
       }
+
+      // Call auto-complete function to update expired prescriptions
+      await supabase.rpc("auto_complete_expired_prescriptions");
 
       const { data, error } = await supabase
         .from("prescriptions")
@@ -129,7 +142,8 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
   }, [user.id]);
 
   const activePrescriptions = prescriptions.filter((p) => p.status === "active");
-  const historyPrescriptions = prescriptions.filter((p) => p.status !== "active");
+  const completedPrescriptions = prescriptions.filter((p) => p.status === "completed");
+  const cancelledPrescriptions = prescriptions.filter((p) => p.status === "cancelled");
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -164,9 +178,14 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
     });
   };
 
-  const PrescriptionTable = ({ items }: { items: Prescription[] }) => {
+  const ActivePrescriptionTable = ({ items }: { items: Prescription[] }) => {
     if (items.length === 0) {
-      return <div className="text-muted-foreground py-8 text-center">No prescriptions found.</div>;
+      return (
+        <div className="text-muted-foreground py-8 text-center flex flex-col items-center gap-2">
+          <Pill className="w-12 h-12 opacity-50" />
+          <p>No active prescriptions</p>
+        </div>
+      );
     }
 
     return (
@@ -178,6 +197,7 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
               <TableHead>Dosage</TableHead>
               <TableHead>Frequency</TableHead>
               <TableHead>Doctor</TableHead>
+              <TableHead>Duration</TableHead>
               <TableHead>Start Date</TableHead>
               <TableHead>End Date</TableHead>
               <TableHead>Status</TableHead>
@@ -189,9 +209,74 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
               <TableRow key={prescription.id}>
                 <TableCell className="font-medium">{prescription.medication_name}</TableCell>
                 <TableCell>{prescription.dosage}</TableCell>
-                <TableCell>{prescription.frequency}</TableCell>
+                <TableCell>{FREQUENCY_LABELS[prescription.frequency] || prescription.frequency}</TableCell>
                 <TableCell>{prescription.doctor_name}</TableCell>
+                <TableCell>{prescription.duration_days ? `${prescription.duration_days} days` : "-"}</TableCell>
                 <TableCell>{format(new Date(prescription.start_date), "MMM d, yyyy")}</TableCell>
+                <TableCell>
+                  {prescription.end_date
+                    ? format(new Date(prescription.end_date), "MMM d, yyyy")
+                    : "-"}
+                </TableCell>
+                <TableCell>
+                  <Badge className={getStatusColor(prescription.status)}>
+                    {prescription.status}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadPdf(prescription)}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const CompletedPrescriptionTable = ({ items }: { items: Prescription[] }) => {
+    if (items.length === 0) {
+      return (
+        <div className="text-muted-foreground py-8 text-center flex flex-col items-center gap-2">
+          <CheckCircle className="w-12 h-12 opacity-50" />
+          <p>No completed prescriptions</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <div className="bg-muted/30 rounded-lg p-4 mb-4 text-sm text-muted-foreground">
+          <CheckCircle className="w-4 h-4 inline mr-2" />
+          These prescriptions have been completed and are shown for your records only.
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Medication</TableHead>
+              <TableHead>Dosage</TableHead>
+              <TableHead>Frequency</TableHead>
+              <TableHead>Doctor</TableHead>
+              <TableHead>Duration</TableHead>
+              <TableHead>Completed</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Download</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((prescription) => (
+              <TableRow key={prescription.id} className="opacity-75">
+                <TableCell className="font-medium">{prescription.medication_name}</TableCell>
+                <TableCell>{prescription.dosage}</TableCell>
+                <TableCell>{FREQUENCY_LABELS[prescription.frequency] || prescription.frequency}</TableCell>
+                <TableCell>{prescription.doctor_name}</TableCell>
+                <TableCell>{prescription.duration_days ? `${prescription.duration_days} days` : "-"}</TableCell>
                 <TableCell>
                   {prescription.end_date
                     ? format(new Date(prescription.end_date), "MMM d, yyyy")
@@ -230,16 +315,23 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
           <Pill className="w-4 h-4" />
           Active ({activePrescriptions.length})
         </TabsTrigger>
-        <TabsTrigger value="history" className="flex items-center gap-2">
+        <TabsTrigger value="completed" className="flex items-center gap-2">
+          <CheckCircle className="w-4 h-4" />
+          Completed ({completedPrescriptions.length})
+        </TabsTrigger>
+        <TabsTrigger value="cancelled" className="flex items-center gap-2">
           <History className="w-4 h-4" />
-          History ({historyPrescriptions.length})
+          Cancelled ({cancelledPrescriptions.length})
         </TabsTrigger>
       </TabsList>
       <TabsContent value="active">
-        <PrescriptionTable items={activePrescriptions} />
+        <ActivePrescriptionTable items={activePrescriptions} />
       </TabsContent>
-      <TabsContent value="history">
-        <PrescriptionTable items={historyPrescriptions} />
+      <TabsContent value="completed">
+        <CompletedPrescriptionTable items={completedPrescriptions} />
+      </TabsContent>
+      <TabsContent value="cancelled">
+        <CompletedPrescriptionTable items={cancelledPrescriptions} />
       </TabsContent>
     </Tabs>
   );
