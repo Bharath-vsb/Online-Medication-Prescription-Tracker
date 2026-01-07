@@ -16,6 +16,7 @@ import {
 import ProfileSetup from "@/components/ProfileSetup";
 import InventoryManagement from "@/components/pharmacist/InventoryManagement";
 import PatientPrescriptionViewer from "@/components/pharmacist/PatientPrescriptionViewer";
+import PharmacistNotifications from "@/components/pharmacist/PharmacistNotifications";
 
 interface InventoryStats {
   total: number;
@@ -124,6 +125,7 @@ const PharmacistDashboard = () => {
             <h1 className="text-2xl font-bold text-foreground">Pharmacist Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
+            <PharmacistNotifications />
             <span className="text-muted-foreground text-sm">{user.email}</span>
             <Button
               onClick={async () => {
