@@ -155,6 +155,7 @@ export type Database = {
           created_at: string
           default_dosage: string | null
           id: string
+          in_inventory: boolean | null
           name: string
         }
         Insert: {
@@ -162,6 +163,7 @@ export type Database = {
           created_at?: string
           default_dosage?: string | null
           id?: string
+          in_inventory?: boolean | null
           name: string
         }
         Update: {
@@ -169,6 +171,7 @@ export type Database = {
           created_at?: string
           default_dosage?: string | null
           id?: string
+          in_inventory?: boolean | null
           name?: string
         }
         Relationships: []
@@ -203,6 +206,39 @@ export type Database = {
         }
         Relationships: []
       }
+      pharmacist_notifications: {
+        Row: {
+          created_at: string
+          doctor_name: string | null
+          id: string
+          is_read: boolean | null
+          medicine_name: string
+          notification_type: string
+          requested_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          doctor_name?: string | null
+          id?: string
+          is_read?: boolean | null
+          medicine_name: string
+          notification_type: string
+          requested_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          doctor_name?: string | null
+          id?: string
+          is_read?: boolean | null
+          medicine_name?: string
+          notification_type?: string
+          requested_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       prescriptions: {
         Row: {
           created_at: string
@@ -214,6 +250,7 @@ export type Database = {
           frequency: string
           id: string
           instructions: string | null
+          is_sold: boolean | null
           medication_name: string
           patient_id: string
           patient_ref: string | null
@@ -231,6 +268,7 @@ export type Database = {
           frequency: string
           id?: string
           instructions?: string | null
+          is_sold?: boolean | null
           medication_name: string
           patient_id: string
           patient_ref?: string | null
@@ -248,6 +286,7 @@ export type Database = {
           frequency?: string
           id?: string
           instructions?: string | null
+          is_sold?: boolean | null
           medication_name?: string
           patient_id?: string
           patient_ref?: string | null
@@ -361,6 +400,7 @@ export type Database = {
           frequency: string
           id: string
           instructions: string | null
+          is_sold: boolean | null
           medication_name: string
           patient_id: string
           patient_ref: string | null

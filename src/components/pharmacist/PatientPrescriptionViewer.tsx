@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, User, Pill, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Search, User, Pill, ShoppingCart, AlertTriangle, CheckCircle } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -33,6 +33,7 @@ interface Prescription {
   duration_days: number | null;
   status: "active" | "completed" | "cancelled";
   instructions: string | null;
+  is_sold: boolean;
   doctor_name?: string;
 }
 
@@ -73,6 +74,20 @@ const PatientPrescriptionViewer = () => {
   useEffect(() => {
     fetchPatients();
     fetchInventory();
+
+    // Subscribe to inventory changes
+    const channel = supabase
+      .channel("inventory-prescription-viewer")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "inventory" },
+        fetchInventory
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -143,6 +158,7 @@ const PatientPrescriptionViewer = () => {
         duration_days,
         status,
         instructions,
+        is_sold,
         doctor_id
       `)
       .eq("patient_ref", patient.patient_id)
@@ -164,6 +180,7 @@ const PatientPrescriptionViewer = () => {
 
       const prescriptionsWithDoctors = data.map((p) => ({
         ...p,
+        is_sold: p.is_sold ?? false,
         doctor_name: doctorMap.get(p.doctor_id) || "Unknown Doctor",
       }));
 
@@ -179,20 +196,22 @@ const PatientPrescriptionViewer = () => {
 
   const calculateTotalQuantity = (prescription: Prescription): number => {
     const dosesPerDay = FREQUENCY_DOSES[prescription.frequency] || 1;
-    
+
     // Use duration_days if available
     if (prescription.duration_days) {
       return prescription.duration_days * dosesPerDay;
     }
-    
+
     // Fallback to calculating from dates
     if (prescription.start_date && prescription.end_date) {
       const start = new Date(prescription.start_date);
       const end = new Date(prescription.end_date);
-      const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const days =
+        Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) +
+        1;
       return days * dosesPerDay;
     }
-    
+
     return 0;
   };
 
@@ -200,13 +219,16 @@ const PatientPrescriptionViewer = () => {
     if (prescription.duration_days) {
       return prescription.duration_days;
     }
-    
+
     if (prescription.start_date && prescription.end_date) {
       const start = new Date(prescription.start_date);
       const end = new Date(prescription.end_date);
-      return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      return (
+        Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) +
+        1
+      );
     }
-    
+
     return 0;
   };
 
@@ -218,11 +240,19 @@ const PatientPrescriptionViewer = () => {
   };
 
   const handleSell = async (prescription: Prescription) => {
+    // Prevent selling if already sold
+    if (prescription.is_sold) {
+      toast.error("This prescription has already been sold");
+      return;
+    }
+
     const totalQuantity = calculateTotalQuantity(prescription);
     const availableStock = getAvailableStock(prescription.medication_name);
 
     if (availableStock < totalQuantity) {
-      toast.error(`Insufficient stock. Required: ${totalQuantity}, Available: ${availableStock}`);
+      toast.error(
+        `Insufficient stock. Required: ${totalQuantity}, Available: ${availableStock}`
+      );
       return;
     }
 
@@ -248,9 +278,9 @@ const PatientPrescriptionViewer = () => {
       // Deduct stock
       const { error: updateError } = await supabase
         .from("inventory")
-        .update({ 
+        .update({
           stock_quantity: invItem.stock_quantity - totalQuantity,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq("id", invItem.id);
 
@@ -263,7 +293,10 @@ const PatientPrescriptionViewer = () => {
       // Mark prescription as completed after selling
       const { error: prescError } = await supabase
         .from("prescriptions")
-        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .update({
+          is_sold: true,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", prescription.id);
 
       if (prescError) {
@@ -272,8 +305,10 @@ const PatientPrescriptionViewer = () => {
         return;
       }
 
-      toast.success(`Sold ${totalQuantity} units of ${prescription.medication_name}`);
-      
+      toast.success(
+        `Sold ${totalQuantity} units of ${prescription.medication_name}`
+      );
+
       // Refresh data
       if (selectedPatient) {
         await fetchPrescriptions(selectedPatient);
@@ -381,8 +416,11 @@ const PatientPrescriptionViewer = () => {
                   {prescriptions.map((prescription) => {
                     const totalQty = calculateTotalQuantity(prescription);
                     const duration = getDurationDays(prescription);
-                    const availableStock = getAvailableStock(prescription.medication_name);
+                    const availableStock = getAvailableStock(
+                      prescription.medication_name
+                    );
                     const insufficientStock = availableStock < totalQty;
+                    const isSold = prescription.is_sold;
 
                     return (
                       <TableRow key={prescription.id}>
@@ -401,15 +439,24 @@ const PatientPrescriptionViewer = () => {
                           <Badge variant="secondary">{totalQty} units</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge 
+                          <Badge
                             variant={insufficientStock ? "destructive" : "outline"}
-                            className={insufficientStock ? "" : "bg-green-500/10 text-green-600 border-green-500/30"}
+                            className={
+                              insufficientStock
+                                ? ""
+                                : "bg-green-500/10 text-green-600 border-green-500/30"
+                            }
                           >
                             {availableStock}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {insufficientStock ? (
+                          {isSold ? (
+                            <div className="flex items-center gap-1 text-green-600 text-sm">
+                              <CheckCircle className="w-4 h-4" />
+                              Bought
+                            </div>
+                          ) : insufficientStock ? (
                             <div className="flex items-center gap-1 text-destructive text-sm">
                               <AlertTriangle className="w-4 h-4" />
                               Low Stock
@@ -422,7 +469,9 @@ const PatientPrescriptionViewer = () => {
                               className="flex items-center gap-1"
                             >
                               <ShoppingCart className="w-4 h-4" />
-                              {sellingId === prescription.id ? "Selling..." : "Sell"}
+                              {sellingId === prescription.id
+                                ? "Selling..."
+                                : "Sell"}
                             </Button>
                           )}
                         </TableCell>
