@@ -10,10 +10,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
 import { format } from "date-fns";
-import { Download } from "lucide-react";
+import { Download, Pill, History, CheckCircle } from "lucide-react";
 import { generatePrescriptionPdf } from "@/lib/generatePrescriptionPdf";
 
 interface Prescription {
@@ -35,6 +36,15 @@ interface PrescriptionListProps {
   user: User;
   refreshTrigger: number;
 }
+
+const FREQUENCY_LABELS: Record<string, string> = {
+  once_morning: "Once a day (Morning)",
+  once_afternoon: "Once a day (Afternoon)",
+  once_night: "Once a day (Night)",
+  twice_daily: "Twice a day",
+  three_times_daily: "Three times a day",
+  every_8_hours: "Every 8 hours",
+};
 
 const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -186,87 +196,122 @@ const PrescriptionList = ({ user, refreshTrigger }: PrescriptionListProps) => {
     });
   };
 
+  const activePrescriptions = prescriptions.filter((p) => p.status === "active");
+  const historyPrescriptions = prescriptions.filter((p) => p.status !== "active");
+
   if (loading) {
     return <div className="text-muted-foreground">Loading prescriptions...</div>;
   }
 
-  if (prescriptions.length === 0) {
-    return <div className="text-muted-foreground">No prescriptions found.</div>;
-  }
+  const PrescriptionTable = ({ items, showActions }: { items: Prescription[]; showActions: boolean }) => {
+    if (items.length === 0) {
+      return (
+        <div className="text-muted-foreground py-8 text-center flex flex-col items-center gap-2">
+          <Pill className="w-12 h-12 opacity-50" />
+          <p>No prescriptions found</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Patient ID</TableHead>
+              <TableHead>Patient Name</TableHead>
+              <TableHead>Medication</TableHead>
+              <TableHead>Dosage</TableHead>
+              <TableHead>Frequency</TableHead>
+              <TableHead>Duration</TableHead>
+              <TableHead>End Date</TableHead>
+              <TableHead>Status</TableHead>
+              {showActions && <TableHead>Actions</TableHead>}
+              <TableHead>Download</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((prescription) => (
+              <TableRow key={prescription.id} className={!showActions ? "opacity-75" : ""}>
+                <TableCell className="font-mono text-sm">
+                  {prescription.patient_code || "-"}
+                </TableCell>
+                <TableCell className="font-medium">{prescription.patient_name}</TableCell>
+                <TableCell>{prescription.medication_name}</TableCell>
+                <TableCell>{prescription.dosage}</TableCell>
+                <TableCell>{FREQUENCY_LABELS[prescription.frequency] || prescription.frequency}</TableCell>
+                <TableCell>{prescription.duration_days ? `${prescription.duration_days} days` : "-"}</TableCell>
+                <TableCell>
+                  {prescription.end_date 
+                    ? format(new Date(prescription.end_date), "MMM d, yyyy")
+                    : "-"}
+                </TableCell>
+                <TableCell>
+                  <Badge className={getStatusColor(prescription.status)}>
+                    {prescription.status}
+                  </Badge>
+                </TableCell>
+                {showActions && (
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => updateStatus(prescription.id, "completed", prescription)}
+                      >
+                        Complete
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive"
+                        onClick={() => updateStatus(prescription.id, "cancelled", prescription)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadPdf(prescription)}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
 
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Patient ID</TableHead>
-            <TableHead>Patient Name</TableHead>
-            <TableHead>Medication</TableHead>
-            <TableHead>Dosage</TableHead>
-            <TableHead>Frequency</TableHead>
-            <TableHead>Duration</TableHead>
-            <TableHead>End Date</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Actions</TableHead>
-            <TableHead>Download</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {prescriptions.map((prescription) => (
-            <TableRow key={prescription.id}>
-              <TableCell className="font-mono text-sm">
-                {prescription.patient_code || "-"}
-              </TableCell>
-              <TableCell className="font-medium">{prescription.patient_name}</TableCell>
-              <TableCell>{prescription.medication_name}</TableCell>
-              <TableCell>{prescription.dosage}</TableCell>
-              <TableCell>{prescription.frequency}</TableCell>
-              <TableCell>{prescription.duration_days ? `${prescription.duration_days} days` : "-"}</TableCell>
-              <TableCell>
-                {prescription.end_date 
-                  ? format(new Date(prescription.end_date), "MMM d, yyyy")
-                  : "-"}
-              </TableCell>
-              <TableCell>
-                <Badge className={getStatusColor(prescription.status)}>
-                  {prescription.status}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {prescription.status === "active" && (
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => updateStatus(prescription.id, "completed", prescription)}
-                    >
-                      Complete
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-destructive"
-                      onClick={() => updateStatus(prescription.id, "cancelled", prescription)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                )}
-              </TableCell>
-              <TableCell>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDownloadPdf(prescription)}
-                >
-                  <Download className="w-4 h-4" />
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <Tabs defaultValue="active" className="w-full">
+      <TabsList className="mb-4">
+        <TabsTrigger value="active" className="flex items-center gap-2">
+          <Pill className="w-4 h-4" />
+          Active Prescriptions ({activePrescriptions.length})
+        </TabsTrigger>
+        <TabsTrigger value="history" className="flex items-center gap-2">
+          <History className="w-4 h-4" />
+          Prescription History ({historyPrescriptions.length})
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="active">
+        <PrescriptionTable items={activePrescriptions} showActions={true} />
+      </TabsContent>
+      <TabsContent value="history">
+        <div className="bg-muted/30 rounded-lg p-4 mb-4 text-sm text-muted-foreground">
+          <CheckCircle className="w-4 h-4 inline mr-2" />
+          These prescriptions are completed or cancelled and shown for your records only.
+        </div>
+        <PrescriptionTable items={historyPrescriptions} showActions={false} />
+      </TabsContent>
+    </Tabs>
   );
 };
 

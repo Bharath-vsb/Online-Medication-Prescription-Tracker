@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, User, Pill, ShoppingCart, AlertTriangle, CheckCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search, User, Pill, ShoppingCart, AlertTriangle, CheckCircle, History } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 interface Patient {
   patient_id: string;
@@ -35,6 +37,9 @@ interface Prescription {
   instructions: string | null;
   is_sold: boolean;
   doctor_name?: string;
+  patient_name?: string;
+  patient_code?: string;
+  updated_at?: string;
 }
 
 interface InventoryItem {
@@ -62,11 +67,13 @@ const FREQUENCY_LABELS: Record<string, string> = {
 };
 
 const PatientPrescriptionViewer = () => {
+  const [activeTab, setActiveTab] = useState("sell");
   const [searchTerm, setSearchTerm] = useState("");
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [sellingHistory, setSellingHistory] = useState<Prescription[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [sellingId, setSellingId] = useState<string | null>(null);
@@ -74,6 +81,7 @@ const PatientPrescriptionViewer = () => {
   useEffect(() => {
     fetchPatients();
     fetchInventory();
+    fetchSellingHistory();
 
     // Subscribe to inventory changes
     const channel = supabase
@@ -82,6 +90,16 @@ const PatientPrescriptionViewer = () => {
         "postgres_changes",
         { event: "*", schema: "public", table: "inventory" },
         fetchInventory
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "prescriptions" },
+        () => {
+          fetchSellingHistory();
+          if (selectedPatient) {
+            fetchPrescriptions(selectedPatient);
+          }
+        }
       )
       .subscribe();
 
@@ -137,6 +155,78 @@ const PatientPrescriptionViewer = () => {
     if (data) {
       setInventory(data);
     }
+  };
+
+  const fetchSellingHistory = async () => {
+    // Fetch all sold prescriptions
+    const { data, error } = await supabase
+      .from("prescriptions")
+      .select(`
+        id,
+        medication_name,
+        dosage,
+        frequency,
+        start_date,
+        end_date,
+        duration_days,
+        status,
+        instructions,
+        is_sold,
+        updated_at,
+        doctor_id,
+        patient_ref
+      `)
+      .eq("is_sold", true)
+      .order("updated_at", { ascending: false });
+
+    if (error || !data) {
+      return;
+    }
+
+    // Fetch doctor names
+    const doctorIds = [...new Set(data.map((p) => p.doctor_id))];
+    const { data: doctorProfiles } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", doctorIds);
+    const doctorMap = new Map(doctorProfiles?.map((p) => [p.id, p.full_name]) || []);
+
+    // Fetch patient names
+    const patientRefs = [...new Set(data.map((p) => p.patient_ref).filter(Boolean))];
+    const { data: patientsData } = await supabase
+      .from("patients")
+      .select("patient_id, user_id")
+      .in("patient_id", patientRefs);
+
+    let patientMap = new Map<string, { name: string; code: string }>();
+    if (patientsData) {
+      const userIds = patientsData.map((p) => p.user_id);
+      const { data: patientProfiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, patient_id")
+        .in("id", userIds);
+
+      const profileMap = new Map(
+        patientProfiles?.map((p) => [p.id, { name: p.full_name, code: p.patient_id || "" }]) || []
+      );
+      
+      patientMap = new Map(
+        patientsData.map((p) => [
+          p.patient_id,
+          profileMap.get(p.user_id) || { name: "Unknown", code: "" }
+        ])
+      );
+    }
+
+    const historyWithNames = data.map((p) => ({
+      ...p,
+      is_sold: p.is_sold ?? false,
+      doctor_name: doctorMap.get(p.doctor_id) || "Unknown Doctor",
+      patient_name: patientMap.get(p.patient_ref || "")?.name || "Unknown Patient",
+      patient_code: patientMap.get(p.patient_ref || "")?.code || "",
+    }));
+
+    setSellingHistory(historyWithNames);
   };
 
   const fetchPrescriptions = async (patient: Patient) => {
@@ -290,7 +380,7 @@ const PatientPrescriptionViewer = () => {
         return;
       }
 
-      // Mark prescription as completed after selling
+      // Mark prescription as sold (but keep status active)
       const { error: prescError } = await supabase
         .from("prescriptions")
         .update({
@@ -313,6 +403,7 @@ const PatientPrescriptionViewer = () => {
       if (selectedPatient) {
         await fetchPrescriptions(selectedPatient);
       }
+      await fetchSellingHistory();
     } catch (error) {
       console.error("Sell error:", error);
       toast.error("An error occurred while processing the sale");
@@ -322,169 +413,266 @@ const PatientPrescriptionViewer = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Search Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="w-5 h-5" />
-            Search Patient
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="relative">
-            <Label htmlFor="patientSearch" className="sr-only">
-              Search by Patient ID or Name
-            </Label>
-            <Input
-              id="patientSearch"
-              placeholder="Search by Patient ID or Name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pr-10"
-            />
-            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-          </div>
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <TabsList className="mb-4">
+        <TabsTrigger value="sell" className="flex items-center gap-2">
+          <ShoppingCart className="w-4 h-4" />
+          Sell Medicines
+        </TabsTrigger>
+        <TabsTrigger value="history" className="flex items-center gap-2">
+          <History className="w-4 h-4" />
+          Selling History ({sellingHistory.length})
+        </TabsTrigger>
+      </TabsList>
 
-          {/* Search Results Dropdown */}
-          {filteredPatients.length > 0 && (
-            <div className="mt-2 border border-border rounded-lg bg-card shadow-lg max-h-60 overflow-y-auto">
-              {filteredPatients.map((patient) => (
-                <button
-                  key={patient.patient_id}
-                  onClick={() => fetchPrescriptions(patient)}
-                  className="w-full px-4 py-3 text-left hover:bg-muted/50 flex items-center gap-3 border-b border-border last:border-0"
-                >
+      <TabsContent value="sell">
+        <div className="space-y-6">
+          {/* Search Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                Search Patient
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="relative">
+                <Label htmlFor="patientSearch" className="sr-only">
+                  Search by Patient ID or Name
+                </Label>
+                <Input
+                  id="patientSearch"
+                  placeholder="Search by Patient ID or Name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pr-10"
+                />
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              </div>
+
+              {/* Search Results Dropdown */}
+              {filteredPatients.length > 0 && (
+                <div className="mt-2 border border-border rounded-lg bg-card shadow-lg max-h-60 overflow-y-auto">
+                  {filteredPatients.map((patient) => (
+                    <button
+                      key={patient.patient_id}
+                      onClick={() => fetchPrescriptions(patient)}
+                      className="w-full px-4 py-3 text-left hover:bg-muted/50 flex items-center gap-3 border-b border-border last:border-0"
+                    >
+                      <User className="w-5 h-5 text-primary" />
+                      <div>
+                        <p className="font-medium">{patient.full_name}</p>
+                        {patient.patient_code && (
+                          <p className="text-sm text-muted-foreground">
+                            ID: {patient.patient_code}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {searchTerm && filteredPatients.length === 0 && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  No patients found matching "{searchTerm}"
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Selected Patient Info */}
+          {selectedPatient && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
                   <User className="w-5 h-5 text-primary" />
-                  <div>
-                    <p className="font-medium">{patient.full_name}</p>
-                    {patient.patient_code && (
-                      <p className="text-sm text-muted-foreground">
-                        ID: {patient.patient_code}
-                      </p>
-                    )}
+                  {selectedPatient.full_name}
+                  {selectedPatient.patient_code && (
+                    <Badge variant="outline">{selectedPatient.patient_code}</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Loading prescriptions...
                   </div>
-                </button>
-              ))}
-            </div>
-          )}
+                ) : prescriptions.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground flex flex-col items-center gap-2">
+                    <Pill className="w-12 h-12 opacity-50" />
+                    <p>No active prescriptions found for this patient</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Medicine</TableHead>
+                        <TableHead>Frequency</TableHead>
+                        <TableHead>Duration (Days)</TableHead>
+                        <TableHead>Prescribed By</TableHead>
+                        <TableHead>Total Qty</TableHead>
+                        <TableHead>Stock</TableHead>
+                        <TableHead>Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {prescriptions.map((prescription) => {
+                        const totalQty = calculateTotalQuantity(prescription);
+                        const duration = getDurationDays(prescription);
+                        const availableStock = getAvailableStock(
+                          prescription.medication_name
+                        );
+                        const insufficientStock = availableStock < totalQty;
+                        const isSold = prescription.is_sold;
 
-          {searchTerm && filteredPatients.length === 0 && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              No patients found matching "{searchTerm}"
-            </p>
+                        return (
+                          <TableRow key={prescription.id}>
+                            <TableCell className="font-medium">
+                              {prescription.medication_name}
+                            </TableCell>
+                            <TableCell>
+                              {FREQUENCY_LABELS[prescription.frequency] ||
+                                prescription.frequency}
+                            </TableCell>
+                            <TableCell>{duration} days</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {prescription.doctor_name}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{totalQty} units</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={insufficientStock ? "destructive" : "outline"}
+                                className={
+                                  insufficientStock
+                                    ? ""
+                                    : "bg-green-500/10 text-green-600 border-green-500/30"
+                                }
+                              >
+                                {availableStock}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {isSold ? (
+                                <div className="flex items-center gap-1 text-green-600 text-sm">
+                                  <CheckCircle className="w-4 h-4" />
+                                  Sold
+                                </div>
+                              ) : insufficientStock ? (
+                                <div className="flex items-center gap-1 text-destructive text-sm">
+                                  <AlertTriangle className="w-4 h-4" />
+                                  Low Stock
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSell(prescription)}
+                                  disabled={sellingId === prescription.id}
+                                  className="flex items-center gap-1"
+                                >
+                                  <ShoppingCart className="w-4 h-4" />
+                                  {sellingId === prescription.id
+                                    ? "Selling..."
+                                    : "Sell"}
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </TabsContent>
 
-      {/* Selected Patient Info */}
-      {selectedPatient && (
+      <TabsContent value="history">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="w-5 h-5 text-primary" />
-              {selectedPatient.full_name}
-              {selectedPatient.patient_code && (
-                <Badge variant="outline">{selectedPatient.patient_code}</Badge>
-              )}
+              <History className="w-5 h-5" />
+              Selling History
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading prescriptions...
-              </div>
-            ) : prescriptions.length === 0 ? (
+            {sellingHistory.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground flex flex-col items-center gap-2">
-                <Pill className="w-12 h-12 opacity-50" />
-                <p>No active prescriptions found for this patient</p>
+                <History className="w-12 h-12 opacity-50" />
+                <p>No selling history yet</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Medicine</TableHead>
-                    <TableHead>Frequency</TableHead>
-                    <TableHead>Duration (Days)</TableHead>
-                    <TableHead>Prescribed By</TableHead>
-                    <TableHead>Total Qty</TableHead>
-                    <TableHead>Stock</TableHead>
-                    <TableHead>Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {prescriptions.map((prescription) => {
-                    const totalQty = calculateTotalQuantity(prescription);
-                    const duration = getDurationDays(prescription);
-                    const availableStock = getAvailableStock(
-                      prescription.medication_name
-                    );
-                    const insufficientStock = availableStock < totalQty;
-                    const isSold = prescription.is_sold;
-
-                    return (
-                      <TableRow key={prescription.id}>
-                        <TableCell className="font-medium">
-                          {prescription.medication_name}
-                        </TableCell>
-                        <TableCell>
-                          {FREQUENCY_LABELS[prescription.frequency] ||
-                            prescription.frequency}
-                        </TableCell>
-                        <TableCell>{duration} days</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {prescription.doctor_name}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{totalQty} units</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={insufficientStock ? "destructive" : "outline"}
-                            className={
-                              insufficientStock
-                                ? ""
-                                : "bg-green-500/10 text-green-600 border-green-500/30"
-                            }
-                          >
-                            {availableStock}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {isSold ? (
-                            <div className="flex items-center gap-1 text-green-600 text-sm">
-                              <CheckCircle className="w-4 h-4" />
-                              Bought
-                            </div>
-                          ) : insufficientStock ? (
-                            <div className="flex items-center gap-1 text-destructive text-sm">
-                              <AlertTriangle className="w-4 h-4" />
-                              Low Stock
-                            </div>
-                          ) : (
-                            <Button
-                              size="sm"
-                              onClick={() => handleSell(prescription)}
-                              disabled={sellingId === prescription.id}
-                              className="flex items-center gap-1"
-                            >
-                              <ShoppingCart className="w-4 h-4" />
-                              {sellingId === prescription.id
-                                ? "Selling..."
-                                : "Sell"}
-                            </Button>
-                          )}
-                        </TableCell>
+              <>
+                <div className="bg-muted/30 rounded-lg p-4 mb-4 text-sm text-muted-foreground">
+                  <CheckCircle className="w-4 h-4 inline mr-2" />
+                  This is a read-only record of all medicines sold. These records cannot be modified.
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Patient ID</TableHead>
+                        <TableHead>Patient Name</TableHead>
+                        <TableHead>Medicine</TableHead>
+                        <TableHead>Frequency</TableHead>
+                        <TableHead>Duration</TableHead>
+                        <TableHead>Qty Sold</TableHead>
+                        <TableHead>Prescribed By</TableHead>
+                        <TableHead>Sold On</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {sellingHistory.map((item) => {
+                        const totalQty = calculateTotalQuantity(item);
+                        const duration = getDurationDays(item);
+
+                        return (
+                          <TableRow key={item.id} className="opacity-90">
+                            <TableCell className="font-mono text-sm">
+                              {item.patient_code || "-"}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {item.patient_name}
+                            </TableCell>
+                            <TableCell>{item.medication_name}</TableCell>
+                            <TableCell>
+                              {FREQUENCY_LABELS[item.frequency] || item.frequency}
+                            </TableCell>
+                            <TableCell>{duration} days</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{totalQty} units</Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {item.doctor_name}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {item.updated_at
+                                ? format(new Date(item.updated_at), "MMM d, yyyy HH:mm")
+                                : "-"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="bg-green-500/20 text-green-600 border-green-500/30">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Sold
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
-      )}
-    </div>
+      </TabsContent>
+    </Tabs>
   );
 };
 
