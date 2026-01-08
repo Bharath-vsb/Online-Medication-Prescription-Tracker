@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, ChevronsUpDown, Plus, AlertCircle } from "lucide-react";
+import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,8 +38,6 @@ interface MedicineSelectProps {
   userName: string;
   disabled?: boolean;
 }
-
-const LOW_STOCK_THRESHOLD = 100;
 
 const MedicineSelect = ({
   value,
@@ -89,7 +87,7 @@ const MedicineSelect = ({
       setMedicines(medsData);
     }
 
-    // Fetch inventory for stock info
+    // Fetch inventory for stock info (kept for internal logic only)
     const { data: invData } = await supabase
       .from("inventory")
       .select("medicine_name, stock_quantity")
@@ -107,11 +105,6 @@ const MedicineSelect = ({
       (inv) => inv.medicine_name.toLowerCase() === medicineName.toLowerCase()
     );
     return item?.stock_quantity || 0;
-  };
-
-  const isLowStock = (medicineName: string): boolean => {
-    const qty = getStockQuantity(medicineName);
-    return qty > 0 && qty <= LOW_STOCK_THRESHOLD;
   };
 
   const handleAddNewMedicine = async () => {
@@ -187,7 +180,6 @@ const MedicineSelect = ({
     setOpen(false);
   };
 
-  const selectedMedicine = medicines.find((m) => m.name === value);
   const filteredMedicines = medicines.filter((m) =>
     m.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -245,69 +237,36 @@ const MedicineSelect = ({
                       <Plus className="w-4 h-4 text-primary" />
                       <span>Add "{searchQuery.trim()}"</span>
                       <Badge variant="outline" className="ml-auto text-xs">
-                        Not in inventory
+                        New medicine
                       </Badge>
                     </CommandItem>
                   </CommandGroup>
                 )}
 
                 <CommandGroup heading={`Medicines (${filteredMedicines.length})`}>
-                  {filteredMedicines.map((medicine) => {
-                    const stockQty = getStockQuantity(medicine.name);
-                    const lowStock = isLowStock(medicine.name);
-                    const noStock = medicine.in_inventory && stockQty === 0;
-
-                    return (
-                      <CommandItem
-                        key={medicine.id}
-                        value={medicine.name}
-                        onSelect={() => handleSelect(medicine)}
-                        className="flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Check
-                            className={cn(
-                              "h-4 w-4",
-                              value === medicine.name
-                                ? "opacity-100"
-                                : "opacity-0"
-                            )}
-                          />
-                          <span>{medicine.name}</span>
-                          {medicine.category && (
-                            <span className="text-xs text-muted-foreground">
-                              ({medicine.category})
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!medicine.in_inventory || noStock ? (
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30"
-                            >
-                              <AlertCircle className="w-3 h-3 mr-1" />
-                              Not in stock
-                            </Badge>
-                          ) : lowStock ? (
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30"
-                            >
-                              Low: {stockQty}
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-green-500/10 text-green-600 border-green-500/30"
-                            >
-                              Stock: {stockQty}
-                            </Badge>
-                          )}
-                        </div>
-                      </CommandItem>
-                    );
-                  })}
+                  {filteredMedicines.map((medicine) => (
+                    <CommandItem
+                      key={medicine.id}
+                      value={medicine.name}
+                      onSelect={() => handleSelect(medicine)}
+                      className="flex items-center gap-2"
+                    >
+                      <Check
+                        className={cn(
+                          "h-4 w-4",
+                          value === medicine.name
+                            ? "opacity-100"
+                            : "opacity-0"
+                        )}
+                      />
+                      <span>{medicine.name}</span>
+                      {medicine.category && (
+                        <span className="text-xs text-muted-foreground">
+                          ({medicine.category})
+                        </span>
+                      )}
+                    </CommandItem>
+                  ))}
                 </CommandGroup>
               </>
             )}

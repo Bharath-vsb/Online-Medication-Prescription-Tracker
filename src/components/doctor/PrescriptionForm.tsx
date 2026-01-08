@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
-import { AlertTriangle, Package, Info } from "lucide-react";
+import { Info } from "lucide-react";
 
 // Predefined frequency options with default reminder times
 const FREQUENCY_OPTIONS = [
@@ -48,7 +48,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const [selectedPatient, setSelectedPatient] = useState("");
   const [selectedMedicine, setSelectedMedicine] = useState("");
   const [medicineInInventory, setMedicineInInventory] = useState(false);
-  const [medicineStock, setMedicineStock] = useState(0);
   const [dosage, setDosage] = useState("");
   const [frequency, setFrequency] = useState("");
   const [startDate, setStartDate] = useState(today);
@@ -56,7 +55,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const [endDate, setEndDate] = useState("");
   const [instructions, setInstructions] = useState("");
   const [dateError, setDateError] = useState("");
-  const [stockWarning, setStockWarning] = useState("");
 
   // Auto-calculate end date when start date or duration changes
   useEffect(() => {
@@ -122,36 +120,9 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     }
   };
 
-  const calculateRequiredQuantity = (freq: string, duration: number): number => {
-    if (!duration || duration <= 0) return 0;
-    const freqOption = FREQUENCY_OPTIONS.find(f => f.value === freq);
-    const dosesPerDay = freqOption?.doses || 1;
-    return duration * dosesPerDay;
-  };
-
-  const validateStock = () => {
-    if (!selectedMedicine || !frequency || !durationDays || !medicineInInventory) {
-      setStockWarning("");
-      return;
-    }
-
-    const required = calculateRequiredQuantity(frequency, typeof durationDays === "number" ? durationDays : 0);
-    if (medicineStock < required) {
-      setStockWarning(`Insufficient stock. Required: ${required}, Available: ${medicineStock}`);
-    } else {
-      setStockWarning("");
-    }
-  };
-
-  useEffect(() => {
-    validateStock();
-  }, [selectedMedicine, frequency, durationDays, medicineStock, medicineInInventory]);
-
-  const handleMedicineChange = (name: string, inInventory: boolean, stockQty: number) => {
+  const handleMedicineChange = (name: string, inInventory: boolean, _stockQty: number) => {
     setSelectedMedicine(name);
     setMedicineInInventory(inInventory);
-    setMedicineStock(stockQty);
-    setStockWarning("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -198,15 +169,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
-    // Validate stock availability only if medicine is in inventory
-    if (medicineInInventory) {
-      const requiredQty = calculateRequiredQuantity(frequency, durationDays);
-      if (medicineStock < requiredQty) {
-        toast.error(`Insufficient stock. Required: ${requiredQty}, Available: ${medicineStock}`);
-        return;
-      }
-    }
-
     if (!instructions.trim()) {
       toast.error("Please enter instructions");
       return;
@@ -240,21 +202,16 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
         toast.error("Failed to create prescription");
       }
     } else {
-      const message = medicineInInventory 
-        ? "Prescription created successfully. Stock has been updated."
-        : "Prescription created. Note: Medicine is not currently in inventory.";
-      toast.success(message);
+      toast.success("Prescription created successfully");
       setSelectedPatient("");
       setSelectedMedicine("");
       setMedicineInInventory(false);
-      setMedicineStock(0);
       setDosage("");
       setFrequency("");
       setStartDate(new Date().toISOString().split("T")[0]);
       setDurationDays("");
       setEndDate("");
       setInstructions("");
-      setStockWarning("");
       onSuccess();
     }
   };
@@ -304,26 +261,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
           <span className="text-sm text-amber-700">
             This medicine is not currently in inventory. Pharmacist has been notified to add it.
           </span>
-        </div>
-      )}
-
-      {selectedMedicine && medicineInInventory && (
-        <div className="bg-muted/50 border border-border rounded-lg p-3 text-sm">
-          <div className="flex items-center gap-4">
-            <span><strong>Available Stock:</strong> {medicineStock} units</span>
-            {frequency && durationDays && (
-              <span>
-                <strong>Required:</strong> {calculateRequiredQuantity(frequency, typeof durationDays === "number" ? durationDays : 0)} units
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {stockWarning && (
-        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 flex items-center gap-2 text-destructive">
-          <AlertTriangle className="w-5 h-5" />
-          <span className="text-sm">{stockWarning}</span>
         </div>
       )}
 
@@ -399,7 +336,7 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
         />
       </div>
 
-      <Button type="submit" disabled={loading || (medicineInInventory && !!stockWarning)} className="w-full">
+      <Button type="submit" disabled={loading} className="w-full">
         {loading ? "Creating..." : "Create Prescription"}
       </Button>
     </form>
