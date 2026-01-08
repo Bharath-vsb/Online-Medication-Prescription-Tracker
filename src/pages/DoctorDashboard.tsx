@@ -172,7 +172,6 @@ const DoctorDashboard = () => {
 
           <TabsContent value="prescriptions">
             <div className="bg-card border border-border rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-foreground mb-4">My Prescriptions</h2>
               <PrescriptionList user={user} refreshTrigger={refreshTrigger} />
             </div>
           </TabsContent>
