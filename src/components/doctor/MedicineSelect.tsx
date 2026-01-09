@@ -159,21 +159,19 @@ const MedicineSelect = ({
     }
   };
 
-  const handleSelect = (medicine: Medicine) => {
+  const handleSelect = async (medicine: Medicine) => {
     const stockQty = getStockQuantity(medicine.name);
     const inInventory = medicine.in_inventory && stockQty > 0;
     
     onValueChange(medicine.name, inInventory, stockQty);
     
     if (!inInventory) {
-      // Send notification if medicine not in inventory
-      supabase.from("pharmacist_notifications").insert({
+      // Send notification silently if medicine not in inventory
+      await supabase.from("pharmacist_notifications").insert({
         notification_type: "medicine_request",
         medicine_name: medicine.name,
         requested_by: userId,
         doctor_name: userName,
-      }).then(() => {
-        toast.info(`Pharmacist notified to add "${medicine.name}" to inventory`);
       });
     }
     
