@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
-import { Info } from "lucide-react";
+import { Info, Plus, X, Pill } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 // Predefined frequency options with default reminder times
 const FREQUENCY_OPTIONS = [
@@ -34,6 +35,17 @@ interface Patient {
   patient_code: string | null;
 }
 
+interface MedicineEntry {
+  id: string;
+  medicineName: string;
+  inInventory: boolean;
+  dosage: string;
+  frequency: string;
+  durationDays: number;
+  endDate: string;
+  instructions: string;
+}
+
 interface PrescriptionFormProps {
   user: User;
   onSuccess: () => void;
@@ -46,27 +58,32 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   const [doctorId, setDoctorId] = useState<string | null>(null);
   const [doctorName, setDoctorName] = useState("");
   const [selectedPatient, setSelectedPatient] = useState("");
-  const [selectedMedicine, setSelectedMedicine] = useState("");
-  const [medicineInInventory, setMedicineInInventory] = useState(false);
-  const [dosage, setDosage] = useState("");
-  const [frequency, setFrequency] = useState("");
   const [startDate, setStartDate] = useState(today);
-  const [durationDays, setDurationDays] = useState<number | "">("");
-  const [endDate, setEndDate] = useState("");
-  const [instructions, setInstructions] = useState("");
   const [dateError, setDateError] = useState("");
+  
+  // Multiple medicines state
+  const [medicines, setMedicines] = useState<MedicineEntry[]>([]);
+  
+  // Current medicine being added
+  const [currentMedicine, setCurrentMedicine] = useState("");
+  const [currentInInventory, setCurrentInInventory] = useState(false);
+  const [currentDosage, setCurrentDosage] = useState("");
+  const [currentFrequency, setCurrentFrequency] = useState("");
+  const [currentDurationDays, setCurrentDurationDays] = useState<number | "">("");
+  const [currentEndDate, setCurrentEndDate] = useState("");
+  const [currentInstructions, setCurrentInstructions] = useState("");
 
-  // Auto-calculate end date when start date or duration changes
+  // Auto-calculate end date for current medicine
   useEffect(() => {
-    if (startDate && durationDays && typeof durationDays === "number" && durationDays > 0) {
+    if (startDate && currentDurationDays && typeof currentDurationDays === "number" && currentDurationDays > 0) {
       const start = new Date(startDate);
       const end = new Date(start);
-      end.setDate(start.getDate() + durationDays - 1);
-      setEndDate(end.toISOString().split("T")[0]);
+      end.setDate(start.getDate() + currentDurationDays - 1);
+      setCurrentEndDate(end.toISOString().split("T")[0]);
     } else {
-      setEndDate("");
+      setCurrentEndDate("");
     }
-  }, [startDate, durationDays]);
+  }, [startDate, currentDurationDays]);
 
   useEffect(() => {
     fetchData();
@@ -121,8 +138,77 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   };
 
   const handleMedicineChange = (name: string, inInventory: boolean, _stockQty: number) => {
-    setSelectedMedicine(name);
-    setMedicineInInventory(inInventory);
+    setCurrentMedicine(name);
+    setCurrentInInventory(inInventory);
+  };
+
+  const calculateEndDate = (duration: number): string => {
+    if (!startDate || !duration || duration <= 0) return "";
+    const start = new Date(startDate);
+    const end = new Date(start);
+    end.setDate(start.getDate() + duration - 1);
+    return end.toISOString().split("T")[0];
+  };
+
+  const addMedicine = () => {
+    if (!currentMedicine) {
+      toast.error("Please select a medicine");
+      return;
+    }
+    if (!currentDosage.trim()) {
+      toast.error("Please enter dosage");
+      return;
+    }
+    if (!currentFrequency) {
+      toast.error("Please select frequency");
+      return;
+    }
+    if (!currentDurationDays || typeof currentDurationDays !== "number" || currentDurationDays <= 0) {
+      toast.error("Please enter a valid duration");
+      return;
+    }
+    if (!currentInstructions.trim()) {
+      toast.error("Please enter instructions");
+      return;
+    }
+
+    // Check if medicine already added
+    if (medicines.some(m => m.medicineName.toLowerCase() === currentMedicine.toLowerCase())) {
+      toast.error("This medicine is already added to the prescription");
+      return;
+    }
+
+    const newMedicine: MedicineEntry = {
+      id: crypto.randomUUID(),
+      medicineName: currentMedicine,
+      inInventory: currentInInventory,
+      dosage: currentDosage.trim(),
+      frequency: currentFrequency,
+      durationDays: currentDurationDays,
+      endDate: calculateEndDate(currentDurationDays),
+      instructions: currentInstructions.trim(),
+    };
+
+    setMedicines([...medicines, newMedicine]);
+    
+    // Reset current medicine fields
+    setCurrentMedicine("");
+    setCurrentInInventory(false);
+    setCurrentDosage("");
+    setCurrentFrequency("");
+    setCurrentDurationDays("");
+    setCurrentEndDate("");
+    setCurrentInstructions("");
+    
+    toast.success(`${newMedicine.medicineName} added to prescription`);
+  };
+
+  const removeMedicine = (id: string) => {
+    setMedicines(medicines.filter(m => m.id !== id));
+  };
+
+  const getFrequencyLabel = (value: string): string => {
+    return FREQUENCY_OPTIONS.find(f => f.value === value)?.label || value;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -138,18 +224,8 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
-    if (!selectedMedicine) {
-      toast.error("Please select a medicine");
-      return;
-    }
-
-    if (!dosage.trim()) {
-      toast.error("Please enter dosage");
-      return;
-    }
-
-    if (!frequency.trim()) {
-      toast.error("Please select frequency");
+    if (medicines.length === 0) {
+      toast.error("Please add at least one medicine to the prescription");
       return;
     }
 
@@ -164,124 +240,65 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
       return;
     }
 
-    if (!durationDays || typeof durationDays !== "number" || durationDays <= 0) {
-      toast.error("Please enter a valid duration (number of days)");
-      return;
-    }
-
-    if (!instructions.trim()) {
-      toast.error("Please enter instructions");
-      return;
-    }
-
     const patient = patients.find((p) => p.patient_id === selectedPatient);
 
     setLoading(true);
 
-    const { error } = await supabase.from("prescriptions").insert({
+    // Create all prescriptions
+    const prescriptions = medicines.map(med => ({
       patient_id: patient?.user_id || "",
       doctor_id: user.id,
       patient_ref: selectedPatient,
       doctor_ref: doctorId,
-      medication_name: selectedMedicine,
-      dosage: dosage.trim(),
-      frequency: frequency.trim(),
+      medication_name: med.medicineName,
+      dosage: med.dosage,
+      frequency: med.frequency,
       start_date: startDate,
-      end_date: endDate,
-      duration_days: durationDays,
-      instructions: instructions.trim(),
-    });
+      end_date: med.endDate,
+      duration_days: med.durationDays,
+      instructions: med.instructions,
+    }));
+
+    const { error } = await supabase.from("prescriptions").insert(prescriptions);
 
     setLoading(false);
 
     if (error) {
       console.error("Prescription error:", error);
       if (error.message.includes("Insufficient stock")) {
-        toast.error("Insufficient stock or medicine not available. Please select a different medicine.");
+        toast.error("Insufficient stock or medicine not available. Please check medicines and try again.");
       } else {
         toast.error("Failed to create prescription");
       }
     } else {
-      toast.success("Prescription created successfully");
+      toast.success(`Prescription created with ${medicines.length} medicine(s)`);
       setSelectedPatient("");
-      setSelectedMedicine("");
-      setMedicineInInventory(false);
-      setDosage("");
-      setFrequency("");
+      setMedicines([]);
       setStartDate(new Date().toISOString().split("T")[0]);
-      setDurationDays("");
-      setEndDate("");
-      setInstructions("");
       onSuccess();
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="patient">Select Patient <span className="text-destructive">*</span></Label>
-        <SearchableSelect
-          options={patients.map((patient) => ({
-            value: patient.patient_id,
-            label: `${patient.patient_code ? `${patient.patient_code} - ` : ""}${patient.full_name}`,
-          }))}
-          value={selectedPatient}
-          onValueChange={setSelectedPatient}
-          placeholder="Select a patient"
-          searchPlaceholder="Search patients..."
-          emptyMessage="No patients found."
-        />
-      </div>
-
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Patient and Start Date Selection */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="medicine">Select Medicine <span className="text-destructive">*</span></Label>
-          <MedicineSelect
-            value={selectedMedicine}
-            onValueChange={handleMedicineChange}
-            userId={user.id}
-            userName={doctorName}
+          <Label htmlFor="patient">Select Patient <span className="text-destructive">*</span></Label>
+          <SearchableSelect
+            options={patients.map((patient) => ({
+              value: patient.patient_id,
+              label: `${patient.patient_code ? `${patient.patient_code} - ` : ""}${patient.full_name}`,
+            }))}
+            value={selectedPatient}
+            onValueChange={setSelectedPatient}
+            placeholder="Select a patient"
+            searchPlaceholder="Search patients..."
+            emptyMessage="No patients found."
           />
         </div>
         <div>
-          <Label htmlFor="dosage">Dosage <span className="text-destructive">*</span></Label>
-          <Input
-            id="dosage"
-            value={dosage}
-            onChange={(e) => setDosage(e.target.value)}
-            placeholder="e.g., 500mg"
-            required
-          />
-        </div>
-      </div>
-
-      {selectedMedicine && !medicineInInventory && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-center gap-2">
-          <Info className="w-5 h-5 text-amber-600" />
-          <span className="text-sm text-amber-700">
-            This medicine is not currently in inventory. Pharmacist has been notified to add it.
-          </span>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <Label htmlFor="frequency">Frequency <span className="text-destructive">*</span></Label>
-          <Select value={frequency} onValueChange={setFrequency}>
-            <SelectTrigger id="frequency">
-              <SelectValue placeholder="Select frequency" />
-            </SelectTrigger>
-            <SelectContent>
-              {FREQUENCY_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="startDate">Start Date <span className="text-destructive">*</span></Label>
+          <Label htmlFor="startDate">Prescription Start Date <span className="text-destructive">*</span></Label>
           <Input
             id="startDate"
             type="date"
@@ -300,44 +317,151 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
           />
           {dateError && <p className="text-destructive text-sm mt-1">{dateError}</p>}
         </div>
-        <div>
-          <Label htmlFor="durationDays">Duration (Days) <span className="text-destructive">*</span></Label>
-          <Input
-            id="durationDays"
-            type="number"
-            min={1}
-            value={durationDays}
-            onChange={(e) => setDurationDays(e.target.value ? parseInt(e.target.value) : "")}
-            placeholder="e.g., 7"
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="endDate">End Date (Auto-calculated)</Label>
-          <Input
-            id="endDate"
-            type="date"
-            value={endDate}
-            disabled
-            className="bg-muted"
-          />
-        </div>
       </div>
 
-      <div>
-        <Label htmlFor="instructions">Instructions <span className="text-destructive">*</span></Label>
-        <Textarea
-          id="instructions"
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
-          placeholder="Special instructions for the patient"
-          rows={3}
-          required
-        />
-      </div>
+      {/* Added Medicines List */}
+      {medicines.length > 0 && (
+        <div className="space-y-3">
+          <Label className="text-base font-semibold">Medicines Added ({medicines.length})</Label>
+          <div className="space-y-2">
+            {medicines.map((med) => (
+              <Card key={med.id} className="bg-muted/50">
+                <CardContent className="p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="p-2 rounded-full bg-primary/10">
+                        <Pill className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{med.medicineName}</span>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-sm text-muted-foreground">{med.dosage}</span>
+                          {!med.inInventory && (
+                            <span className="text-xs bg-amber-500/10 text-amber-700 px-2 py-0.5 rounded-full">
+                              Not in inventory
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          {getFrequencyLabel(med.frequency)} • {med.durationDays} days (until {med.endDate})
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-0.5 truncate">
+                          Instructions: {med.instructions}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => removeMedicine(med.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Creating..." : "Create Prescription"}
+      {/* Add Medicine Section */}
+      <Card className="border-dashed">
+        <CardContent className="p-4 space-y-4">
+          <Label className="text-base font-semibold">Add Medicine</Label>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="medicine">Select Medicine <span className="text-destructive">*</span></Label>
+              <MedicineSelect
+                value={currentMedicine}
+                onValueChange={handleMedicineChange}
+                userId={user.id}
+                userName={doctorName}
+              />
+            </div>
+            <div>
+              <Label htmlFor="dosage">Dosage <span className="text-destructive">*</span></Label>
+              <Input
+                id="dosage"
+                value={currentDosage}
+                onChange={(e) => setCurrentDosage(e.target.value)}
+                placeholder="e.g., 500mg"
+              />
+            </div>
+          </div>
+
+          {currentMedicine && !currentInInventory && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-center gap-2">
+              <Info className="w-5 h-5 text-amber-600" />
+              <span className="text-sm text-amber-700">
+                This medicine is not currently in inventory. Pharmacist has been notified to add it.
+              </span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="frequency">Frequency <span className="text-destructive">*</span></Label>
+              <Select value={currentFrequency} onValueChange={setCurrentFrequency}>
+                <SelectTrigger id="frequency">
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FREQUENCY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="durationDays">Duration (Days) <span className="text-destructive">*</span></Label>
+              <Input
+                id="durationDays"
+                type="number"
+                min={1}
+                value={currentDurationDays}
+                onChange={(e) => setCurrentDurationDays(e.target.value ? parseInt(e.target.value) : "")}
+                placeholder="e.g., 7"
+              />
+            </div>
+            <div>
+              <Label htmlFor="endDate">End Date (Auto)</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={currentEndDate}
+                disabled
+                className="bg-muted"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="instructions">Instructions <span className="text-destructive">*</span></Label>
+            <Textarea
+              id="instructions"
+              value={currentInstructions}
+              onChange={(e) => setCurrentInstructions(e.target.value)}
+              placeholder="Special instructions for this medicine"
+              rows={2}
+            />
+          </div>
+
+          <Button type="button" variant="outline" onClick={addMedicine} className="w-full">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Medicine to Prescription
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Button type="submit" disabled={loading || medicines.length === 0} className="w-full">
+        {loading ? "Creating..." : `Create Prescription (${medicines.length} medicine${medicines.length !== 1 ? 's' : ''})`}
       </Button>
     </form>
   );
