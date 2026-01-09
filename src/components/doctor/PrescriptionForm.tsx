@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
-import { Info, Plus, X, Pill } from "lucide-react";
+import { Plus, X, Pill } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 // Predefined frequency options with default reminder times
@@ -38,7 +38,6 @@ interface Patient {
 interface MedicineEntry {
   id: string;
   medicineName: string;
-  inInventory: boolean;
   dosage: string;
   frequency: string;
   durationDays: number;
@@ -66,7 +65,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
   
   // Current medicine being added
   const [currentMedicine, setCurrentMedicine] = useState("");
-  const [currentInInventory, setCurrentInInventory] = useState(false);
   const [currentDosage, setCurrentDosage] = useState("");
   const [currentFrequency, setCurrentFrequency] = useState("");
   const [currentDurationDays, setCurrentDurationDays] = useState<number | "">("");
@@ -137,9 +135,8 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     }
   };
 
-  const handleMedicineChange = (name: string, inInventory: boolean, _stockQty: number) => {
+  const handleMedicineChange = (name: string, _inInventory: boolean, _stockQty: number) => {
     setCurrentMedicine(name);
-    setCurrentInInventory(inInventory);
   };
 
   const calculateEndDate = (duration: number): string => {
@@ -181,7 +178,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     const newMedicine: MedicineEntry = {
       id: crypto.randomUUID(),
       medicineName: currentMedicine,
-      inInventory: currentInInventory,
       dosage: currentDosage.trim(),
       frequency: currentFrequency,
       durationDays: currentDurationDays,
@@ -193,7 +189,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
     
     // Reset current medicine fields
     setCurrentMedicine("");
-    setCurrentInInventory(false);
     setCurrentDosage("");
     setCurrentFrequency("");
     setCurrentDurationDays("");
@@ -337,11 +332,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
                           <span className="font-medium">{med.medicineName}</span>
                           <span className="text-muted-foreground">•</span>
                           <span className="text-sm text-muted-foreground">{med.dosage}</span>
-                          {!med.inInventory && (
-                            <span className="text-xs bg-amber-500/10 text-amber-700 px-2 py-0.5 rounded-full">
-                              Not in inventory
-                            </span>
-                          )}
                         </div>
                         <div className="text-sm text-muted-foreground mt-1">
                           {getFrequencyLabel(med.frequency)} • {med.durationDays} days (until {med.endDate})
@@ -393,15 +383,6 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
               />
             </div>
           </div>
-
-          {currentMedicine && !currentInInventory && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-center gap-2">
-              <Info className="w-5 h-5 text-amber-600" />
-              <span className="text-sm text-amber-700">
-                This medicine is not currently in inventory. Pharmacist has been notified to add it.
-              </span>
-            </div>
-          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
