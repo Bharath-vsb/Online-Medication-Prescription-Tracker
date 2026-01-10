@@ -65,10 +65,20 @@ const PharmacistNotifications = () => {
   };
 
   const markAsRead = async (id: string) => {
-    await supabase
+    const { error } = await supabase
       .from("pharmacist_notifications")
       .update({ is_read: true, updated_at: new Date().toISOString() })
       .eq("id", id);
+    
+    if (error) {
+      console.error("Error marking notification as read:", error);
+      return;
+    }
+    
+    // Update local state immediately for better UX
+    setNotifications(prev => 
+      prev.map(n => n.id === id ? { ...n, is_read: true } : n)
+    );
   };
 
   const deleteNotification = async (id: string) => {
@@ -77,10 +87,19 @@ const PharmacistNotifications = () => {
   };
 
   const markAllAsRead = async () => {
-    await supabase
+    const { error } = await supabase
       .from("pharmacist_notifications")
       .update({ is_read: true, updated_at: new Date().toISOString() })
       .eq("is_read", false);
+    
+    if (error) {
+      console.error("Error marking all as read:", error);
+      toast.error("Failed to mark notifications as read");
+      return;
+    }
+    
+    // Update local state immediately
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     toast.success("All notifications marked as read");
   };
 
