@@ -252,7 +252,8 @@ const PatientPrescriptionViewer = () => {
         doctor_id
       `)
       .eq("patient_ref", patient.patient_id)
-      .eq("status", "active") // Only active prescriptions
+      .eq("status", "active")
+      .eq("is_sold", false) // Only unsold prescriptions
       .order("created_at", { ascending: false });
 
     if (error) {
