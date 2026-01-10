@@ -239,6 +239,16 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
     setLoading(true);
 
+    // Check which medicines are NOT in inventory and need notifications
+    const { data: inventoryData } = await supabase
+      .from("inventory")
+      .select("medicine_name, stock_quantity")
+      .gt("stock_quantity", 0);
+
+    const inventorySet = new Set(
+      (inventoryData || []).map(item => item.medicine_name.toLowerCase())
+    );
+
     // Create all prescriptions
     const prescriptions = medicines.map(med => ({
       patient_id: patient?.user_id || "",
@@ -256,22 +266,39 @@ const PrescriptionForm = ({ user, onSuccess }: PrescriptionFormProps) => {
 
     const { error } = await supabase.from("prescriptions").insert(prescriptions);
 
-    setLoading(false);
-
     if (error) {
       console.error("Prescription error:", error);
-      if (error.message.includes("Insufficient stock")) {
-        toast.error("Insufficient stock or medicine not available. Please check medicines and try again.");
-      } else {
-        toast.error("Failed to create prescription");
-      }
-    } else {
-      toast.success(`Prescription created with ${medicines.length} medicine(s)`);
-      setSelectedPatient("");
-      setMedicines([]);
-      setStartDate(new Date().toISOString().split("T")[0]);
-      onSuccess();
+      toast.error("Failed to create prescription");
+      setLoading(false);
+      return;
     }
+
+    // Send notifications for medicines not in inventory
+    const medicinesNotInInventory = medicines.filter(
+      med => !inventorySet.has(med.medicineName.toLowerCase())
+    );
+
+    if (medicinesNotInInventory.length > 0) {
+      const notifications = medicinesNotInInventory.map(med => ({
+        notification_type: "medicine_request",
+        medicine_name: med.medicineName,
+        requested_by: user.id,
+        doctor_name: doctorName,
+      }));
+
+      await supabase.from("pharmacist_notifications").insert(notifications);
+      
+      toast.info(
+        `Pharmacist notified to add ${medicinesNotInInventory.length} medicine(s) to inventory`
+      );
+    }
+
+    toast.success(`Prescription created with ${medicines.length} medicine(s)`);
+    setSelectedPatient("");
+    setMedicines([]);
+    setStartDate(new Date().toISOString().split("T")[0]);
+    setLoading(false);
+    onSuccess();
   };
 
   return (
