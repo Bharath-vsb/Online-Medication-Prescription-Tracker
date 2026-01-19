@@ -12,11 +12,13 @@ import {
   ClipboardList,
   LogOut,
   User as UserIcon,
-  Plus
+  Plus,
+  BarChart3
 } from "lucide-react";
 import ProfileSetup from "@/components/ProfileSetup";
 import PrescriptionForm from "@/components/doctor/PrescriptionForm";
 import PrescriptionList from "@/components/doctor/PrescriptionList";
+import DoctorAnalytics from "@/components/analytics/DoctorAnalytics";
 
 const DoctorDashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -164,6 +166,10 @@ const DoctorDashboard = () => {
               <Plus className="w-4 h-4" />
               New Prescription
             </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <UserIcon className="w-4 h-4" />
               Profile
@@ -186,6 +192,13 @@ const DoctorDashboard = () => {
                   setActiveTab("prescriptions");
                 }} 
               />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-6">Analytics</h2>
+              <DoctorAnalytics user={user} />
             </div>
           </TabsContent>
 

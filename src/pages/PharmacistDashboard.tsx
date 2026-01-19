@@ -11,12 +11,14 @@ import {
   Calendar,
   LogOut,
   User as UserIcon,
-  ClipboardList
+  ClipboardList,
+  BarChart3
 } from "lucide-react";
 import ProfileSetup from "@/components/ProfileSetup";
 import InventoryManagement from "@/components/pharmacist/InventoryManagement";
 import PatientPrescriptionViewer from "@/components/pharmacist/PatientPrescriptionViewer";
 import PharmacistNotifications from "@/components/pharmacist/PharmacistNotifications";
+import PharmacistAnalytics from "@/components/analytics/PharmacistAnalytics";
 
 interface InventoryStats {
   total: number;
@@ -196,6 +198,10 @@ const PharmacistDashboard = () => {
               <ClipboardList className="w-4 h-4" />
               Patient Prescriptions
             </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <UserIcon className="w-4 h-4" />
               Profile
@@ -208,6 +214,13 @@ const PharmacistDashboard = () => {
 
           <TabsContent value="patients">
             <PatientPrescriptionViewer />
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-6">Analytics</h2>
+              <PharmacistAnalytics user={user} />
+            </div>
           </TabsContent>
 
           <TabsContent value="profile">

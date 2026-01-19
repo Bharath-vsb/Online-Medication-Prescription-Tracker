@@ -10,11 +10,13 @@ import {
   Clock,
   Bell,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  BarChart3
 } from "lucide-react";
 import ProfileSetup from "@/components/ProfileSetup";
 import PatientPrescriptions from "@/components/patient/PatientPrescriptions";
 import MedicationReminders from "@/components/patient/MedicationReminders";
+import PatientAnalytics from "@/components/analytics/PatientAnalytics";
 import { useReminderNotifications } from "@/hooks/useReminderNotifications";
 
 const PatientDashboard = () => {
@@ -167,6 +169,10 @@ const PatientDashboard = () => {
               <Bell className="w-4 h-4" />
               Reminders
             </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <UserIcon className="w-4 h-4" />
               Profile
@@ -182,6 +188,13 @@ const PatientDashboard = () => {
           <TabsContent value="reminders">
             <div className="bg-card border border-border rounded-xl p-6">
               <MedicationReminders user={user} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-6">Analytics</h2>
+              <PatientAnalytics user={user} />
             </div>
           </TabsContent>
 
