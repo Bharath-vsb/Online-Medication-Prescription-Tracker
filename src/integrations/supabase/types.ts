@@ -388,33 +388,6 @@ export type Database = {
     }
     Functions: {
       auto_complete_expired_prescriptions: { Args: never; Returns: undefined }
-      check_and_complete_prescriptions: {
-        Args: never
-        Returns: {
-          created_at: string
-          doctor_id: string
-          doctor_ref: string | null
-          dosage: string
-          duration_days: number | null
-          end_date: string | null
-          frequency: string
-          id: string
-          instructions: string | null
-          is_sold: boolean | null
-          medication_name: string
-          patient_id: string
-          patient_ref: string | null
-          start_date: string
-          status: Database["public"]["Enums"]["prescription_status"]
-          updated_at: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "prescriptions"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
