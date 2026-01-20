@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const CRON_SECRET = Deno.env.get("CRON_SECRET");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +20,7 @@ interface ReminderNotificationRequest {
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -26,14 +28,52 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: ReminderNotificationRequest = await req.json();
-
     console.log("Received notification request:", body);
 
+    // For scheduled cron jobs, verify the cron secret
     if (body.check_scheduled) {
+      const providedSecret = req.headers.get("X-Cron-Secret");
+      if (!CRON_SECRET || providedSecret !== CRON_SECRET) {
+        console.error("Unauthorized cron request - invalid or missing secret");
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+      // Use service role for scheduled tasks (authorized via secret)
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
       return await checkAndSendScheduledReminders(supabase);
     }
+
+    // For manual invocations, require authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      console.error("Missing authorization header");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized - missing authorization" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Create client with user's auth token to validate
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      console.error("Authentication failed:", authError?.message);
+      return new Response(
+        JSON.stringify({ error: "Unauthorized - invalid token" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log("Authenticated user:", user.id);
+
+    // Use service role for actual operations (after auth validation)
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { patient_email, medicine_name, dosage, notification_type } = body;
 
