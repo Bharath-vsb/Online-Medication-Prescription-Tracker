@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
 import { format } from "date-fns";
-import { Pill, History, Download, CheckCircle } from "lucide-react";
+import { Pill, History, Download, CheckCircle, ShoppingBag, XCircle } from "lucide-react";
 import { generatePrescriptionPdf } from "@/lib/generatePrescriptionPdf";
 
 interface Prescription {
@@ -29,6 +29,8 @@ interface Prescription {
   instructions: string | null;
   status: "active" | "completed" | "cancelled";
   created_at: string;
+  is_sold: boolean;
+  sold_quantity: number;
   doctor_name?: string;
 }
 
@@ -48,6 +50,15 @@ const FREQUENCY_LABELS: Record<string, string> = {
   twice_daily: "Twice a day",
   three_times_daily: "Three times a day",
   every_8_hours: "Every 8 hours",
+};
+
+const FREQUENCY_DOSES: Record<string, number> = {
+  once_morning: 1,
+  once_afternoon: 1,
+  once_night: 1,
+  twice_daily: 2,
+  three_times_daily: 3,
+  every_8_hours: 3,
 };
 
 const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
@@ -123,15 +134,17 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
 
             const prescriptionsWithNames = data.map((p) => ({
               ...p,
+              is_sold: p.is_sold ?? false,
+              sold_quantity: p.sold_quantity ?? 0,
               doctor_name: doctorMap.get(p.doctor_ref) || "Unknown Doctor",
             }));
 
             setPrescriptions(prescriptionsWithNames);
           } else {
-            setPrescriptions(data);
+            setPrescriptions(data.map(p => ({ ...p, is_sold: p.is_sold ?? false, sold_quantity: p.sold_quantity ?? 0 })));
           }
         } else {
-          setPrescriptions(data);
+          setPrescriptions(data.map(p => ({ ...p, is_sold: p.is_sold ?? false, sold_quantity: p.sold_quantity ?? 0 })));
         }
       }
 
@@ -139,6 +152,22 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
     };
 
     fetchPrescriptions();
+
+    // Subscribe to prescription changes
+    const channel = supabase
+      .channel("patient-prescriptions")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "prescriptions" },
+        () => {
+          fetchPrescriptions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user.id]);
 
   const activePrescriptions = prescriptions.filter((p) => p.status === "active");
@@ -198,8 +227,7 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
               <TableHead>Frequency</TableHead>
               <TableHead>Doctor</TableHead>
               <TableHead>Duration</TableHead>
-              <TableHead>Start Date</TableHead>
-              <TableHead>End Date</TableHead>
+              <TableHead>Bought Quantity</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Download</TableHead>
             </TableRow>
@@ -212,11 +240,18 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
                 <TableCell>{FREQUENCY_LABELS[prescription.frequency] || prescription.frequency}</TableCell>
                 <TableCell>{prescription.doctor_name}</TableCell>
                 <TableCell>{prescription.duration_days ? `${prescription.duration_days} days` : "-"}</TableCell>
-                <TableCell>{format(new Date(prescription.start_date), "MMM d, yyyy")}</TableCell>
                 <TableCell>
-                  {prescription.end_date
-                    ? format(new Date(prescription.end_date), "MMM d, yyyy")
-                    : "-"}
+                  {prescription.is_sold ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                      <ShoppingBag className="w-3 h-3 mr-1" />
+                      {prescription.sold_quantity} units
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-amber-500 border-amber-500/30">
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Not Bought
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge className={getStatusColor(prescription.status)}>
@@ -264,6 +299,7 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
               <TableHead>Frequency</TableHead>
               <TableHead>Doctor</TableHead>
               <TableHead>Duration</TableHead>
+              <TableHead>Bought Quantity</TableHead>
               <TableHead>Completed</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Download</TableHead>
@@ -277,6 +313,18 @@ const PatientPrescriptions = ({ user }: PatientPrescriptionsProps) => {
                 <TableCell>{FREQUENCY_LABELS[prescription.frequency] || prescription.frequency}</TableCell>
                 <TableCell>{prescription.doctor_name}</TableCell>
                 <TableCell>{prescription.duration_days ? `${prescription.duration_days} days` : "-"}</TableCell>
+                <TableCell>
+                  {prescription.is_sold ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                      <ShoppingBag className="w-3 h-3 mr-1" />
+                      {prescription.sold_quantity} units
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground">
+                      Not Bought
+                    </Badge>
+                  )}
+                </TableCell>
                 <TableCell>
                   {prescription.end_date
                     ? format(new Date(prescription.end_date), "MMM d, yyyy")

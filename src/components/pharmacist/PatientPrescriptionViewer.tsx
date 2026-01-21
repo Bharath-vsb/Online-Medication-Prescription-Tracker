@@ -347,9 +347,22 @@ const PatientPrescriptionViewer = () => {
       return;
     }
 
+    if (!selectedPatient) {
+      toast.error("No patient selected");
+      return;
+    }
+
     setSellingId(prescription.id);
 
     try {
+      // Get current user for sold_by
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Not authenticated");
+        setSellingId(null);
+        return;
+      }
+
       // Find inventory item and deduct stock
       const { data: invItem } = await supabase
         .from("inventory")
@@ -381,11 +394,30 @@ const PatientPrescriptionViewer = () => {
         return;
       }
 
-      // Mark prescription as sold (but keep status active)
+      // Create prescription sale record
+      const { error: saleError } = await supabase
+        .from("prescription_sales")
+        .insert({
+          prescription_id: prescription.id,
+          patient_id: selectedPatient.patient_id,
+          inventory_id: invItem.id,
+          sold_quantity: totalQuantity,
+          sold_by: user.id,
+        });
+
+      if (saleError) {
+        console.error("Sale record error:", saleError);
+        toast.error("Failed to record sale");
+        setSellingId(null);
+        return;
+      }
+
+      // Mark prescription as sold and update sold_quantity
       const { error: prescError } = await supabase
         .from("prescriptions")
         .update({
           is_sold: true,
+          sold_quantity: totalQuantity,
           updated_at: new Date().toISOString(),
         })
         .eq("id", prescription.id);

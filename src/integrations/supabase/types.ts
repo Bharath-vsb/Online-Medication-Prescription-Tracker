@@ -41,6 +41,64 @@ export type Database = {
         }
         Relationships: []
       }
+      dose_confirmations: {
+        Row: {
+          confirmed_at: string | null
+          created_at: string
+          id: string
+          patient_id: string
+          prescription_id: string
+          reminder_id: string
+          scheduled_date: string
+          scheduled_time: string
+          status: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          patient_id: string
+          prescription_id: string
+          reminder_id: string
+          scheduled_date: string
+          scheduled_time: string
+          status?: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          patient_id?: string
+          prescription_id?: string
+          reminder_id?: string
+          scheduled_date?: string
+          scheduled_time?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dose_confirmations_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "dose_confirmations_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dose_confirmations_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: false
+            referencedRelation: "medication_reminders"
+            referencedColumns: ["reminder_id"]
+          },
+        ]
+      }
       inventory: {
         Row: {
           batch_number: string
@@ -239,6 +297,64 @@ export type Database = {
         }
         Relationships: []
       }
+      prescription_sales: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_id: string
+          patient_id: string
+          prescription_id: string
+          sold_by: string
+          sold_date: string
+          sold_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_id: string
+          patient_id: string
+          prescription_id: string
+          sold_by: string
+          sold_date?: string
+          sold_quantity: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_id?: string
+          patient_id?: string
+          prescription_id?: string
+          sold_by?: string
+          sold_date?: string
+          sold_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescription_sales_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescription_sales_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "prescription_sales_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: true
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prescriptions: {
         Row: {
           created_at: string
@@ -254,6 +370,7 @@ export type Database = {
           medication_name: string
           patient_id: string
           patient_ref: string | null
+          sold_quantity: number | null
           start_date: string
           status: Database["public"]["Enums"]["prescription_status"]
           updated_at: string
@@ -272,6 +389,7 @@ export type Database = {
           medication_name: string
           patient_id: string
           patient_ref?: string | null
+          sold_quantity?: number | null
           start_date?: string
           status?: Database["public"]["Enums"]["prescription_status"]
           updated_at?: string
@@ -290,6 +408,7 @@ export type Database = {
           medication_name?: string
           patient_id?: string
           patient_ref?: string | null
+          sold_quantity?: number | null
           start_date?: string
           status?: Database["public"]["Enums"]["prescription_status"]
           updated_at?: string
