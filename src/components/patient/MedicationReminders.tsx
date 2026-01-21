@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Clock, Pill, Edit2, Save, X, Loader2 } from "lucide-react";
+import { Bell, Clock, Pill, Edit2, Save, X, Loader2, Check, AlertCircle, ShoppingBag } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { format } from "date-fns";
 
 interface MedicationRemindersProps {
   user: User;
@@ -29,6 +30,8 @@ interface ActivePrescription {
   start_date: string;
   end_date: string | null;
   instructions: string | null;
+  is_sold: boolean;
+  sold_quantity: number;
 }
 
 interface MedicationReminder {
@@ -42,6 +45,15 @@ interface MedicationReminder {
   end_date: string | null;
   notification_type: string;
   is_enabled: boolean;
+}
+
+interface DoseConfirmation {
+  id: string;
+  reminder_id: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  confirmed_at: string | null;
+  status: "pending" | "confirmed" | "missed";
 }
 
 // Frequency to time mapping - aligned with doctor frequency options
@@ -91,9 +103,13 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
   const [patientId, setPatientId] = useState<string | null>(null);
   const [prescriptions, setPrescriptions] = useState<ActivePrescription[]>([]);
   const [reminders, setReminders] = useState<MedicationReminder[]>([]);
+  const [confirmations, setConfirmations] = useState<DoseConfirmation[]>([]);
   const [editingReminder, setEditingReminder] = useState<string | null>(null);
   const [editTimes, setEditTimes] = useState<string[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [confirmingDose, setConfirmingDose] = useState<string | null>(null);
+
+  const today = format(new Date(), "yyyy-MM-dd");
 
   // Fetch patient data and prescriptions
   useEffect(() => {
@@ -115,17 +131,21 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
 
         setPatientId(patientData.patient_id);
 
-        // Fetch active prescriptions
+        // Fetch active prescriptions with is_sold status
         const { data: prescriptionData, error: prescriptionError } = await supabase
           .from("prescriptions")
-          .select("id, medication_name, dosage, frequency, start_date, end_date, instructions")
+          .select("id, medication_name, dosage, frequency, start_date, end_date, instructions, is_sold, sold_quantity")
           .eq("patient_ref", patientData.patient_id)
           .eq("status", "active");
 
         if (prescriptionError) {
           console.error("Error fetching prescriptions:", prescriptionError);
         } else {
-          setPrescriptions(prescriptionData || []);
+          setPrescriptions(prescriptionData?.map(p => ({
+            ...p,
+            is_sold: p.is_sold ?? false,
+            sold_quantity: p.sold_quantity ?? 0
+          })) || []);
         }
 
         // Fetch existing reminders
@@ -139,6 +159,22 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
         } else {
           setReminders(reminderData || []);
         }
+
+        // Fetch today's dose confirmations
+        const { data: confirmationData, error: confirmationError } = await supabase
+          .from("dose_confirmations")
+          .select("*")
+          .eq("patient_id", patientData.patient_id)
+          .eq("scheduled_date", today);
+
+        if (confirmationError) {
+          console.error("Error fetching confirmations:", confirmationError);
+        } else {
+          setConfirmations((confirmationData || []).map(c => ({
+            ...c,
+            status: c.status as "pending" | "confirmed" | "missed"
+          })));
+        }
       } catch (error) {
         console.error("Error:", error);
       } finally {
@@ -147,14 +183,14 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
     };
 
     fetchData();
-  }, [user.id]);
+  }, [user.id, today]);
 
-  // Real-time subscription for reminders
+  // Real-time subscription for reminders and confirmations
   useEffect(() => {
     if (!patientId) return;
 
     const channel = supabase
-      .channel("medication-reminders")
+      .channel("medication-reminders-confirmations")
       .on(
         "postgres_changes",
         {
@@ -181,6 +217,53 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
           }
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "dose_confirmations",
+          filter: `patient_id=eq.${patientId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            setConfirmations((prev) => [...prev, payload.new as DoseConfirmation]);
+          } else if (payload.eventType === "UPDATE") {
+            setConfirmations((prev) =>
+              prev.map((c) =>
+                c.id === (payload.new as DoseConfirmation).id
+                  ? (payload.new as DoseConfirmation)
+                  : c
+              )
+            );
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "prescriptions",
+        },
+        async () => {
+          // Refetch prescriptions when they change
+          if (patientId) {
+            const { data } = await supabase
+              .from("prescriptions")
+              .select("id, medication_name, dosage, frequency, start_date, end_date, instructions, is_sold, sold_quantity")
+              .eq("patient_ref", patientId)
+              .eq("status", "active");
+            if (data) {
+              setPrescriptions(data.map(p => ({
+                ...p,
+                is_sold: p.is_sold ?? false,
+                sold_quantity: p.sold_quantity ?? 0
+              })));
+            }
+          }
+        }
+      )
       .subscribe();
 
     return () => {
@@ -190,6 +273,16 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
 
   const toggleReminder = async (prescription: ActivePrescription, currentReminder?: MedicationReminder) => {
     if (!patientId) return;
+
+    // Only allow reminders for bought medicines
+    if (!prescription.is_sold) {
+      toast({
+        title: "Medicine not purchased",
+        description: "You can only set reminders for medicines you have purchased from the pharmacy.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setSavingId(prescription.id);
 
@@ -240,6 +333,100 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
     } finally {
       setSavingId(null);
     }
+  };
+
+  const confirmDose = async (reminder: MedicationReminder, time: string) => {
+    if (!patientId) return;
+
+    const confirmKey = `${reminder.reminder_id}-${time}`;
+    setConfirmingDose(confirmKey);
+
+    try {
+      // Check if already confirmed today for this time
+      const existingConfirmation = confirmations.find(
+        c => c.reminder_id === reminder.reminder_id && 
+             c.scheduled_date === today && 
+             c.scheduled_time === time
+      );
+
+      if (existingConfirmation?.status === "confirmed") {
+        toast({
+          title: "Already confirmed",
+          description: "You have already confirmed this dose.",
+        });
+        setConfirmingDose(null);
+        return;
+      }
+
+      // Get prescription_id from the reminder
+      const prescription = prescriptions.find(p => p.id === reminder.prescription_id);
+      if (!prescription) {
+        throw new Error("Prescription not found");
+      }
+
+      if (existingConfirmation) {
+        // Update existing confirmation
+        const { error } = await supabase
+          .from("dose_confirmations")
+          .update({
+            status: "confirmed",
+            confirmed_at: new Date().toISOString(),
+          })
+          .eq("id", existingConfirmation.id);
+
+        if (error) throw error;
+      } else {
+        // Create new confirmation
+        const { error } = await supabase.from("dose_confirmations").insert({
+          reminder_id: reminder.reminder_id,
+          patient_id: patientId,
+          prescription_id: prescription.id,
+          scheduled_date: today,
+          scheduled_time: time,
+          status: "confirmed",
+          confirmed_at: new Date().toISOString(),
+        });
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Dose confirmed!",
+        description: `You confirmed taking ${reminder.medicine_name} at ${formatTime(time)}.`,
+      });
+
+      // Refresh confirmations
+      const { data } = await supabase
+        .from("dose_confirmations")
+        .select("*")
+        .eq("patient_id", patientId)
+        .eq("scheduled_date", today);
+      
+      if (data) {
+        setConfirmations(data.map(c => ({
+          ...c,
+          status: c.status as "pending" | "confirmed" | "missed"
+        })));
+      }
+    } catch (error: any) {
+      console.error("Error confirming dose:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to confirm dose",
+        variant: "destructive",
+      });
+    } finally {
+      setConfirmingDose(null);
+    }
+  };
+
+  const getDoseStatus = (reminder: MedicationReminder, time: string): "pending" | "confirmed" | "missed" => {
+    const confirmation = confirmations.find(
+      c => c.reminder_id === reminder.reminder_id && 
+           c.scheduled_date === today && 
+           c.scheduled_time === time
+    );
+    return confirmation?.status || "pending";
   };
 
   const startEditTimes = (reminder: MedicationReminder) => {
@@ -310,8 +497,13 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
     return reminders.find((r) => r.prescription_id === prescriptionId);
   };
 
-  // Sort prescriptions to show those with enabled reminders first
+  // Sort prescriptions: bought first, then by name
   const sortedPrescriptions = [...prescriptions].sort((a, b) => {
+    // Bought prescriptions first
+    if (a.is_sold && !b.is_sold) return -1;
+    if (!a.is_sold && b.is_sold) return 1;
+    
+    // Then by enabled reminder
     const reminderA = getReminderForPrescription(a.id);
     const reminderB = getReminderForPrescription(b.id);
     if (reminderA?.is_enabled && !reminderB?.is_enabled) return -1;
@@ -345,7 +537,7 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
         <div>
           <h2 className="text-xl font-semibold text-foreground">Medication Reminders</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Enable reminders for your active prescriptions to never miss a dose.
+            Enable reminders for your purchased medicines to never miss a dose.
           </p>
         </div>
         <Badge variant="outline" className="text-primary border-primary">
@@ -359,14 +551,21 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
           const isEditing = editingReminder === reminder?.reminder_id;
           const isSaving = savingId === prescription.id || savingId === reminder?.reminder_id;
           const displayTimes = isEditing ? editTimes : (reminder?.reminder_times || getDefaultTimes(prescription.frequency));
+          const isBought = prescription.is_sold;
 
           return (
-            <Card key={prescription.id} className={`transition-all ${reminder?.is_enabled ? "border-primary/50 bg-primary/5" : ""}`}>
+            <Card key={prescription.id} className={`transition-all ${!isBought ? "opacity-60 border-dashed" : reminder?.is_enabled ? "border-primary/50 bg-primary/5" : ""}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${reminder?.is_enabled ? "bg-primary/20" : "bg-muted"}`}>
-                      <Pill className={`w-5 h-5 ${reminder?.is_enabled ? "text-primary" : "text-muted-foreground"}`} />
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      !isBought ? "bg-amber-500/20" : reminder?.is_enabled ? "bg-primary/20" : "bg-muted"
+                    }`}>
+                      {isBought ? (
+                        <Pill className={`w-5 h-5 ${reminder?.is_enabled ? "text-primary" : "text-muted-foreground"}`} />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-amber-500" />
+                      )}
                     </div>
                     <div>
                       <CardTitle className="text-lg">{prescription.medication_name}</CardTitle>
@@ -374,16 +573,29 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {isBought && (
+                      <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                        <ShoppingBag className="w-3 h-3 mr-1" />
+                        Bought
+                      </Badge>
+                    )}
                     {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                     <Switch
                       checked={reminder?.is_enabled ?? false}
                       onCheckedChange={() => toggleReminder(prescription, reminder)}
-                      disabled={isSaving}
+                      disabled={isSaving || !isBought}
                     />
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {!isBought && (
+                  <div className="bg-amber-500/10 rounded-lg p-3 text-sm text-amber-600 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Medicine not yet purchased. Please buy from pharmacy to enable reminders.
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-4 text-sm">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-muted-foreground" />
@@ -397,73 +609,110 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
                   )}
                 </div>
 
-                {/* Reminder Times */}
-                <div className="bg-muted/50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <Label className="text-sm font-medium">Reminder Times</Label>
-                    {reminder?.is_enabled && !isEditing && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => startEditTimes(reminder)}
-                        className="h-8 text-xs"
-                      >
-                        <Edit2 className="w-3 h-3 mr-1" />
-                        Edit
-                      </Button>
-                    )}
-                    {isEditing && (
-                      <div className="flex gap-2">
+                {/* Reminder Times with Confirm Buttons */}
+                {isBought && (
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="text-sm font-medium">Today's Doses</Label>
+                      {reminder?.is_enabled && !isEditing && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={cancelEdit}
+                          onClick={() => startEditTimes(reminder)}
                           className="h-8 text-xs"
-                          disabled={isSaving}
                         >
-                          <X className="w-3 h-3 mr-1" />
-                          Cancel
+                          <Edit2 className="w-3 h-3 mr-1" />
+                          Edit Times
                         </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => saveEditTimes(reminder!)}
-                          className="h-8 text-xs"
-                          disabled={isSaving}
-                        >
-                          <Save className="w-3 h-3 mr-1" />
-                          Save
-                        </Button>
-                      </div>
-                    )}
+                      )}
+                      {isEditing && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={cancelEdit}
+                            className="h-8 text-xs"
+                            disabled={isSaving}
+                          >
+                            <X className="w-3 h-3 mr-1" />
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => saveEditTimes(reminder!)}
+                            className="h-8 text-xs"
+                            disabled={isSaving}
+                          >
+                            <Save className="w-3 h-3 mr-1" />
+                            Save
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {displayTimes.map((time, index) => {
+                        const doseStatus = reminder ? getDoseStatus(reminder, time) : "pending";
+                        const isConfirming = confirmingDose === `${reminder?.reminder_id}-${time}`;
+
+                        return (
+                          <div key={index} className="flex items-center gap-2">
+                            {isEditing ? (
+                              <Input
+                                type="time"
+                                value={time}
+                                onChange={(e) => {
+                                  const newTimes = [...editTimes];
+                                  newTimes[index] = e.target.value;
+                                  setEditTimes(newTimes);
+                                }}
+                                className="w-32 h-8 text-sm"
+                              />
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Badge 
+                                  variant="secondary" 
+                                  className={`px-3 py-1 ${
+                                    doseStatus === "confirmed" 
+                                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" 
+                                      : doseStatus === "missed"
+                                      ? "bg-red-500/20 text-red-400 border-red-500/30"
+                                      : ""
+                                  }`}
+                                >
+                                  <Bell className="w-3 h-3 mr-1" />
+                                  {formatTime(time)}
+                                  {doseStatus === "confirmed" && <Check className="w-3 h-3 ml-1" />}
+                                </Badge>
+                                {reminder?.is_enabled && doseStatus !== "confirmed" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs bg-primary/10 hover:bg-primary/20 text-primary border-primary/30"
+                                    onClick={() => confirmDose(reminder, time)}
+                                    disabled={isConfirming}
+                                  >
+                                    {isConfirming ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Check className="w-3 h-3 mr-1" />
+                                        Confirm
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {displayTimes.map((time, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        {isEditing ? (
-                          <Input
-                            type="time"
-                            value={time}
-                            onChange={(e) => {
-                              const newTimes = [...editTimes];
-                              newTimes[index] = e.target.value;
-                              setEditTimes(newTimes);
-                            }}
-                            className="w-32 h-8 text-sm"
-                          />
-                        ) : (
-                          <Badge variant="secondary" className="px-3 py-1">
-                            <Bell className="w-3 h-3 mr-1" />
-                            {formatTime(time)}
-                          </Badge>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                )}
 
                 {/* Notification Type */}
-                {reminder?.is_enabled && (
+                {reminder?.is_enabled && isBought && (
                   <div className="flex items-center gap-4">
                     <Label className="text-sm">Notify via:</Label>
                     <Select
@@ -477,16 +726,10 @@ const MedicationReminders = ({ user }: MedicationRemindersProps) => {
                       <SelectContent>
                         <SelectItem value="in_app">In-App Only</SelectItem>
                         <SelectItem value="email">Email Only</SelectItem>
-                        <SelectItem value="both">In-App & Email</SelectItem>
+                        <SelectItem value="both">Both</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                )}
-
-                {prescription.instructions && (
-                  <p className="text-sm text-muted-foreground italic">
-                    Instructions: {prescription.instructions}
-                  </p>
                 )}
               </CardContent>
             </Card>

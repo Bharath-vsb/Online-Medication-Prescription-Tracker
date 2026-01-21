@@ -52,45 +52,65 @@ const PatientAnalytics = ({ user }: PatientAnalyticsProps) => {
         // Fetch prescriptions for this patient
         const { data: prescriptions } = await supabase
           .from("prescriptions")
-          .select("id, medication_name, start_date, end_date, status, created_at")
+          .select("id, medication_name, start_date, end_date, status, created_at, is_sold")
           .eq("patient_ref", patientData.patient_id)
           .order("created_at", { ascending: false });
 
-        // Fetch reminders to calculate adherence
-        const { data: reminders } = await supabase
-          .from("medication_reminders")
+        // Fetch dose confirmations to calculate actual adherence
+        const { data: confirmations } = await supabase
+          .from("dose_confirmations")
           .select("*")
           .eq("patient_id", patientData.patient_id);
 
-        // Calculate adherence based on enabled reminders vs total
-        const totalReminders = reminders?.length || 0;
-        const enabledReminders = reminders?.filter(r => r.is_enabled)?.length || 0;
-        const adherence = totalReminders > 0 ? Math.round((enabledReminders / totalReminders) * 100) : 85;
+        // Calculate adherence based on confirmed vs total confirmations
+        const totalConfirmations = confirmations?.length || 0;
+        const confirmedDoses = confirmations?.filter(c => c.status === "confirmed")?.length || 0;
+        const missedDoses = confirmations?.filter(c => c.status === "missed")?.length || 0;
+        
+        let adherence = 85; // Default
+        if (totalConfirmations > 0) {
+          adherence = Math.round((confirmedDoses / totalConfirmations) * 100);
+        }
         setAdherencePercentage(adherence);
 
-        // Calculate adherence change (simulated based on prescription completion)
-        const completedPrescriptions = prescriptions?.filter(p => p.status === "completed")?.length || 0;
-        const totalPrescriptions = prescriptions?.length || 1;
-        const change = Math.round((completedPrescriptions / totalPrescriptions) * 10) - 5;
+        // Calculate adherence change (compare last 15 days vs previous 15 days)
+        const now = new Date();
+        const fifteenDaysAgo = subDays(now, 15);
+        const thirtyDaysAgo = subDays(now, 30);
+
+        const recentConfirmations = confirmations?.filter(c => new Date(c.scheduled_date) >= fifteenDaysAgo) || [];
+        const olderConfirmations = confirmations?.filter(c => {
+          const date = new Date(c.scheduled_date);
+          return date >= thirtyDaysAgo && date < fifteenDaysAgo;
+        }) || [];
+
+        const recentAdherence = recentConfirmations.length > 0 
+          ? (recentConfirmations.filter(c => c.status === "confirmed").length / recentConfirmations.length) * 100 
+          : adherence;
+        const olderAdherence = olderConfirmations.length > 0 
+          ? (olderConfirmations.filter(c => c.status === "confirmed").length / olderConfirmations.length) * 100 
+          : adherence;
+        
+        const change = Math.round(recentAdherence - olderAdherence);
         setAdherenceChange(change);
 
-        // Generate weekly data for the chart
+        // Generate weekly data for the chart based on actual confirmations
         const weeks: WeeklyData[] = [];
         for (let i = 3; i >= 0; i--) {
           const weekStart = startOfWeek(subDays(new Date(), i * 7));
           const weekEnd = endOfWeek(subDays(new Date(), i * 7));
           
-          const weekPrescriptions = prescriptions?.filter(p => {
-            const date = new Date(p.created_at);
+          const weekConfirmations = confirmations?.filter(c => {
+            const date = new Date(c.scheduled_date);
             return date >= weekStart && date <= weekEnd;
           }) || [];
           
-          const completed = weekPrescriptions.filter(p => p.status === "completed").length;
-          const total = weekPrescriptions.length || 1;
+          const confirmed = weekConfirmations.filter(c => c.status === "confirmed").length;
+          const total = weekConfirmations.length;
           
           weeks.push({
             week: `Week ${4 - i}`,
-            adherence: Math.min(100, Math.max(50, adherence - (i * 5) + Math.random() * 10))
+            adherence: total > 0 ? Math.round((confirmed / total) * 100) : adherence
           });
         }
         setWeeklyData(weeks);
