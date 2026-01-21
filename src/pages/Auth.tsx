@@ -231,7 +231,7 @@ const Auth = () => {
       <div className="w-full max-w-md">
         <div className="bg-card rounded-lg p-8 shadow-2xl border border-border">
           <h1 className="text-3xl font-bold text-center mb-6 text-foreground">
-            {isLogin ? "Sign In" : "Sign Up"}
+            {isLogin ? "Login" : "Sign Up"}
           </h1>
 
           <form onSubmit={isLogin ? handleSignIn : handleSignUp} className="space-y-4">
@@ -333,7 +333,7 @@ const Auth = () => {
               disabled={loading}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-all duration-300"
             >
-              {loading ? "Please wait..." : isLogin ? "Sign In" : "Sign Up"}
+              {loading ? "Please wait..." : isLogin ? "Login" : "Sign Up"}
             </Button>
           </form>
 
@@ -342,7 +342,7 @@ const Auth = () => {
               onClick={() => setIsLogin(!isLogin)}
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
-              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
             </button>
           </div>
         </div>
