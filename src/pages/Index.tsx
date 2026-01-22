@@ -27,8 +27,12 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
-    if (!loading && !roleLoading && isAuthenticated && role) {
-      navigate(`/${role}`);
+    if (!loading && !roleLoading) {
+      if (isAuthenticated && role) {
+        navigate(`/${role}`);
+      } else if (!isAuthenticated) {
+        navigate("/auth");
+      }
     }
   }, [loading, roleLoading, isAuthenticated, role, navigate]);
 
