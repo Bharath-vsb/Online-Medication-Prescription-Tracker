@@ -450,6 +450,8 @@ export type Database = {
           created_at: string | null
           full_name: string
           id: string
+          is_active: boolean
+          is_approved: boolean | null
           medical_license_number: string | null
           patient_id: string | null
           phone: string | null
@@ -461,6 +463,8 @@ export type Database = {
           created_at?: string | null
           full_name: string
           id: string
+          is_active?: boolean
+          is_approved?: boolean | null
           medical_license_number?: string | null
           patient_id?: string | null
           phone?: string | null
@@ -472,6 +476,8 @@ export type Database = {
           created_at?: string | null
           full_name?: string
           id?: string
+          is_active?: boolean
+          is_approved?: boolean | null
           medical_license_number?: string | null
           patient_id?: string | null
           phone?: string | null

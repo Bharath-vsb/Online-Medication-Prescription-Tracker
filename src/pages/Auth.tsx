@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { Shield, Eye, EyeOff } from "lucide-react";
 
 const roleOptions = [
   { value: "doctor", label: "Doctor" },
@@ -15,13 +16,28 @@ const roleOptions = [
   { value: "admin", label: "Admin" },
 ];
 
+const ADMIN_SECRET_CODE = "0000";
+
 const signupSchema = z.object({
   fullName: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
   email: z.string().trim().email("Invalid email address").max(255),
   password: z.string().min(6, "Password must be at least 6 characters").max(72),
+  confirmPassword: z.string(),
   role: z.enum(["doctor", "patient", "pharmacist", "admin"]),
   medicalLicenseNumber: z.string().trim().max(50).optional(),
   specialization: z.string().trim().max(100).optional(),
+  secretCode: z.string().optional(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+}).refine((data) => {
+  if (data.role === "admin") {
+    return data.secretCode === ADMIN_SECRET_CODE;
+  }
+  return true;
+}, {
+  message: "Invalid secret code. Admin registration not allowed.",
+  path: ["secretCode"],
 });
 
 const loginSchema = z.object({
@@ -36,9 +52,13 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [role, setRole] = useState<"doctor" | "patient" | "pharmacist" | "admin">("patient");
   const [medicalLicenseNumber, setMedicalLicenseNumber] = useState("");
   const [specialization, setSpecialization] = useState("");
+  const [secretCode, setSecretCode] = useState("");
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -61,9 +81,11 @@ const Auth = () => {
         fullName,
         email,
         password,
+        confirmPassword,
         role,
         medicalLicenseNumber: role === "doctor" ? medicalLicenseNumber : undefined,
         specialization: role === "doctor" ? specialization : undefined,
+        secretCode: role === "admin" ? secretCode : undefined,
       };
 
       const validated = signupSchema.parse(formData);
@@ -112,9 +134,19 @@ const Auth = () => {
 
         toast({
           title: "Account created successfully!",
-          description: "You can now sign in.",
+          description: validated.role === "admin" 
+            ? "Admin account created. You can now sign in."
+            : "You can now sign in.",
         });
         setIsLogin(true);
+        // Reset form
+        setFullName("");
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
+        setSecretCode("");
+        setMedicalLicenseNumber("");
+        setSpecialization("");
       }
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -188,6 +220,26 @@ const Auth = () => {
         return;
       }
 
+      // Check if user is active (for blocked users)
+      const profileResult = await supabase
+        .from("profiles")
+        .select("is_active")
+        .eq("id", authData.user.id)
+        .single();
+
+      const isActive = (profileResult.data as any)?.is_active ?? true;
+
+      if (!isActive) {
+        await supabase.auth.signOut();
+        toast({
+          variant: "destructive",
+          title: "Account Blocked",
+          description: "Your account has been blocked. Please contact the administrator.",
+        });
+        setLoading(false);
+        return;
+      }
+
       toast({
         title: "Welcome back!",
         description: "Successfully signed in.",
@@ -230,6 +282,16 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="bg-card rounded-lg p-8 shadow-2xl border border-border">
+          {/* Admin Badge for Admin Signup */}
+          {!isLogin && role === "admin" && (
+            <div className="flex items-center justify-center mb-4">
+              <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full">
+                <Shield className="h-5 w-5 text-primary" />
+                <span className="text-sm font-medium text-primary">Admin Registration</span>
+              </div>
+            </div>
+          )}
+
           <h1 className="text-3xl font-bold text-center mb-6 text-foreground">
             {isLogin ? "Login" : "Sign Up"}
           </h1>
@@ -271,16 +333,51 @@ const Auth = () => {
               <Label htmlFor="password" className="text-foreground">
                 Password
               </Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="bg-input border-border text-foreground"
-                placeholder="Enter your password"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="bg-input border-border text-foreground pr-10"
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
+
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-foreground">
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    className="bg-input border-border text-foreground pr-10"
+                    placeholder="Confirm your password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="role" className="text-foreground">
@@ -328,6 +425,26 @@ const Auth = () => {
               </>
             )}
 
+            {!isLogin && role === "admin" && (
+              <div className="space-y-2">
+                <Label htmlFor="secretCode" className="text-foreground">
+                  Admin Secret Code <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="secretCode"
+                  type="password"
+                  value={secretCode}
+                  onChange={(e) => setSecretCode(e.target.value)}
+                  required
+                  className="bg-input border-border text-foreground"
+                  placeholder="Enter admin secret code"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Contact system administrator for the secret code
+                </p>
+              </div>
+            )}
+
             <Button
               type="submit"
               disabled={loading}
@@ -339,7 +456,12 @@ const Auth = () => {
 
           <div className="mt-6 text-center">
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setPassword("");
+                setConfirmPassword("");
+                setSecretCode("");
+              }}
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
               {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
