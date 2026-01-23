@@ -115,6 +115,19 @@ const Auth = () => {
 
         if (roleError) throw roleError;
 
+        // Set is_approved based on role - doctors and pharmacists need admin approval
+        const needsApproval = validated.role === "doctor" || validated.role === "pharmacist";
+        
+        // Update profile with approval status
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({ is_approved: !needsApproval } as any)
+          .eq("id", data.user.id);
+
+        if (profileError) {
+          console.error("Profile update error:", profileError);
+        }
+
         // Create role-specific record
         if (validated.role === "patient") {
           const { error: patientError } = await supabase
@@ -132,12 +145,21 @@ const Auth = () => {
           if (doctorError) throw doctorError;
         }
 
-        toast({
-          title: "Account created successfully!",
-          description: validated.role === "admin" 
-            ? "Admin account created. You can now sign in."
-            : "You can now sign in.",
-        });
+        // Show appropriate message based on role
+        if (needsApproval) {
+          toast({
+            title: "Account created successfully!",
+            description: "Your account is pending admin approval. You will be notified once approved.",
+          });
+        } else {
+          toast({
+            title: "Account created successfully!",
+            description: validated.role === "admin" 
+              ? "Admin account created. You can now sign in."
+              : "You can now sign in.",
+          });
+        }
+        
         setIsLogin(true);
         // Reset form
         setFullName("");
@@ -220,14 +242,15 @@ const Auth = () => {
         return;
       }
 
-      // Check if user is active (for blocked users)
+      // Check if user is active and approved
       const profileResult = await supabase
         .from("profiles")
-        .select("is_active")
+        .select("is_active, is_approved")
         .eq("id", authData.user.id)
         .single();
 
       const isActive = (profileResult.data as any)?.is_active ?? true;
+      const isApproved = (profileResult.data as any)?.is_approved ?? true;
 
       if (!isActive) {
         await supabase.auth.signOut();
@@ -235,6 +258,18 @@ const Auth = () => {
           variant: "destructive",
           title: "Account Blocked",
           description: "Your account has been blocked. Please contact the administrator.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Check approval status for doctors and pharmacists
+      if (!isApproved && (userRole.role === "doctor" || userRole.role === "pharmacist")) {
+        await supabase.auth.signOut();
+        toast({
+          variant: "destructive",
+          title: "Pending Approval",
+          description: "Your account is pending approval. Please wait for admin authorization.",
         });
         setLoading(false);
         return;
