@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { User } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Shield, 
@@ -20,31 +19,12 @@ import AdminUsersManagement from "@/components/admin/AdminUsersManagement";
 import AdminPrescriptionsView from "@/components/admin/AdminPrescriptionsView";
 import AdminInventoryView from "@/components/admin/AdminInventoryView";
 import AdminAuthorizationPanel from "@/components/admin/AdminAuthorizationPanel";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
 
 const AdminDashboard = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, hasAccess } = useRoleAccess("admin");
   const [activeTab, setActiveTab] = useState("overview");
   const navigate = useNavigate();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (!session?.user) {
-        navigate("/auth");
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
-        navigate("/auth");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
 
   if (loading) {
     return (
@@ -54,7 +34,7 @@ const AdminDashboard = () => {
     );
   }
 
-  if (!user) return null;
+  if (!user || !hasAccess) return null;
 
   return (
     <div className="min-h-screen bg-background">
