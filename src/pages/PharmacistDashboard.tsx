@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { User } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Pill, 
@@ -19,6 +18,7 @@ import InventoryManagement from "@/components/pharmacist/InventoryManagement";
 import PatientPrescriptionViewer from "@/components/pharmacist/PatientPrescriptionViewer";
 import PharmacistNotifications from "@/components/pharmacist/PharmacistNotifications";
 import PharmacistAnalytics from "@/components/analytics/PharmacistAnalytics";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
 
 interface InventoryStats {
   total: number;
@@ -28,33 +28,14 @@ interface InventoryStats {
 }
 
 const PharmacistDashboard = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, hasAccess } = useRoleAccess("pharmacist");
   const [activeTab, setActiveTab] = useState("inventory");
   const [stats, setStats] = useState<InventoryStats>({ total: 0, lowStock: 0, expired: 0, expiringSoon: 0 });
   const navigate = useNavigate();
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (!session?.user) {
-        navigate("/auth");
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
-        navigate("/auth");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
 
   useEffect(() => {
-    if (user) {
+    if (user && hasAccess) {
       fetchStats();
       
       // Subscribe to realtime inventory updates for stats
@@ -77,7 +58,7 @@ const PharmacistDashboard = () => {
         supabase.removeChannel(channel);
       };
     }
-  }, [user]);
+  }, [user, hasAccess]);
 
   const fetchStats = async () => {
     try {
@@ -113,7 +94,7 @@ const PharmacistDashboard = () => {
     );
   }
 
-  if (!user) return null;
+  if (!user || !hasAccess) return null;
 
   return (
     <div className="min-h-screen bg-background">

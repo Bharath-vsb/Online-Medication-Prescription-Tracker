@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { User } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Stethoscope, 
@@ -19,10 +18,10 @@ import ProfileSetup from "@/components/ProfileSetup";
 import PrescriptionForm from "@/components/doctor/PrescriptionForm";
 import PrescriptionList from "@/components/doctor/PrescriptionList";
 import DoctorAnalytics from "@/components/analytics/DoctorAnalytics";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
 
 const DoctorDashboard = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, hasAccess } = useRoleAccess("doctor");
   const [activeTab, setActiveTab] = useState("prescriptions");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [stats, setStats] = useState({
@@ -64,25 +63,6 @@ const DoctorDashboard = () => {
     fetchStats();
   }, [user, refreshTrigger]);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (!session?.user) {
-        navigate("/auth");
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
-        navigate("/auth");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -91,7 +71,7 @@ const DoctorDashboard = () => {
     );
   }
 
-  if (!user) return null;
+  if (!user || !hasAccess) return null;
 
   return (
     <div className="min-h-screen bg-background">
