@@ -9,11 +9,19 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { Eye, EyeOff } from "lucide-react";
 
-const roleOptions = [
+// Signup roles - admin not allowed (must be created manually)
+const signupRoleOptions = [
   { value: "doctor", label: "Doctor" },
   { value: "patient", label: "Patient" },
   { value: "pharmacist", label: "Pharmacist" },
-  // Admin registration removed for security - admins must be created manually
+];
+
+// Login roles - includes admin for existing admin accounts
+const loginRoleOptions = [
+  { value: "admin", label: "Admin" },
+  { value: "doctor", label: "Doctor" },
+  { value: "patient", label: "Patient" },
+  { value: "pharmacist", label: "Pharmacist" },
 ];
 
 const signupSchema = z.object({
@@ -394,7 +402,7 @@ const Auth = () => {
                 Role
               </Label>
               <SearchableSelect
-                options={roleOptions}
+                options={isLogin ? loginRoleOptions : signupRoleOptions}
                 value={role}
                 onValueChange={(value) => setRole(value as any)}
                 placeholder="Select your role"
