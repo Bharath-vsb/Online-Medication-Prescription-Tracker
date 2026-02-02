@@ -1,0 +1,7 @@
+# .env file - Environment Configuration
+# DO NOT commit this file to version control!
+
+# Add to .gitignore
+.env
+node_modules/
+*.log
