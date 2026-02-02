@@ -827,6 +827,19 @@ app.post('/api/patient/reminders/:id/confirm', authenticate, authorize('patient'
 
     const reminder = reminders[0];
 
+    // Validate: Cannot confirm before reminder time (only for 'taken' status)
+    if (status === 'taken') {
+      const now = new Date();
+      const reminderTime = new Date(reminder.reminder_time);
+
+      if (now < reminderTime) {
+        return res.status(400).json({
+          error: 'Cannot confirm medication before the scheduled reminder time',
+          reminderTime: reminder.reminder_time
+        });
+      }
+    }
+
     await db.query('UPDATE reminders SET status = ? WHERE id = ?', [status, parseInt(id)]);
 
     await db.query(
@@ -859,28 +872,31 @@ app.get('/api/patient/analytics', authenticate, authorize('patient'), async (req
       ? ((stats[0].taken_doses / stats[0].total_reminders) * 100).toFixed(1)
       : '0.0';
 
-    // Weekly adherence
+    // Weekly adherence for line graph
     const [weeklyData] = await db.query(`
       SELECT 
-        DATE_FORMAT(r.reminder_time, '%a') as day_name,
         DATE(r.reminder_time) as reminder_date,
         COUNT(r.id) as total_reminders,
         COUNT(CASE WHEN dc.status = 'taken' THEN 1 END) as taken_doses
       FROM reminders r
       LEFT JOIN dose_confirmations dc ON r.id = dc.reminder_id
       WHERE r.patient_id = ? 
-        AND r.reminder_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND r.reminder_time >= DATE_SUB(NOW(), INTERVAL 14 DAY)
       GROUP BY DATE(r.reminder_time)
       ORDER BY reminder_date ASC
     `, [req.userId]);
 
     const weeklyAdherence = weeklyData.map(d => ({
-      date: d.day_name,
-      adherence: d.total_reminders > 0 ? ((d.taken_doses / d.total_reminders) * 100).toFixed(1) : '0.0'
+      date: d.reminder_date,
+      adherence: d.total_reminders > 0 ? ((d.taken_doses / d.total_reminders) * 100).toFixed(1) : '0.0',
+      totalReminders: d.total_reminders,
+      takenDoses: d.taken_doses
     }));
 
     res.json({
       adherencePercentage: adherence,
+      totalReminders: stats[0].total_reminders,
+      takenDoses: stats[0].taken_doses,
       weeklyAdherence
     });
   } catch (error) {

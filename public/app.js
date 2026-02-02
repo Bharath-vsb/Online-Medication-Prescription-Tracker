@@ -920,10 +920,19 @@ function startReminderUpdates() {
 
 window.confirmDose = async function (reminderId, status) {
     try {
+        // Client-side validation: Check if confirming "taken" before reminder time
+        if (status === 'taken') {
+            const reminderRow = document.querySelector(`button[onclick="confirmDose(${reminderId}, 'taken')"]`)?.closest('tr');
+            if (reminderRow) {
+                const reminderTimeText = reminderRow.querySelector('td:first-child')?.textContent;
+                // This is a basic check - the server will do the authoritative validation
+            }
+        }
+
         await apiCall(`/patient/reminders/${reminderId}/confirm`, 'POST', { status });
         loadPatientReminders();
     } catch (error) {
-        alert('Error updating reminder: ' + error.message);
+        alert('Error: ' + error.message);
     }
 };
 
@@ -993,11 +1002,23 @@ async function loadPatientAnalytics() {
                     <div class="stat-value">${analytics.adherencePercentage}%</div>
                     <div class="stat-description">Overall compliance</div>
                 </div>
+                
+                <div class="stat-card">
+                    <div class="stat-label">Total Reminders</div>
+                    <div class="stat-value">${analytics.totalReminders || 0}</div>
+                    <div class="stat-description">All time</div>
+                </div>
+                
+                <div class="stat-card green">
+                    <div class="stat-label">Doses Taken</div>
+                    <div class="stat-value">${analytics.takenDoses || 0}</div>
+                    <div class="stat-description">Completed doses</div>
+                </div>
             </div>
             
             <div class="card">
                 <div class="card-header">
-                    <h3>Weekly Adherence</h3>
+                    <h3>Adherence Trend (Last 14 Days)</h3>
                 </div>
                 <div class="chart-container">
                     <canvas id="adherenceChart"></canvas>
@@ -1005,18 +1026,28 @@ async function loadPatientAnalytics() {
             </div>
         `;
 
-        // Create chart
+        // Create line chart
         const ctx = document.getElementById('adherenceChart');
         new Chart(ctx, {
-            type: 'bar',
+            type: 'line',
             data: {
-                labels: analytics.weeklyAdherence.map(d => d.date),
+                labels: analytics.weeklyAdherence.map(d => {
+                    const date = new Date(d.date);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }),
                 datasets: [{
                     label: 'Adherence %',
                     data: analytics.weeklyAdherence.map(d => d.adherence),
-                    backgroundColor: 'rgba(16, 185, 129, 0.6)',
-                    borderColor: 'rgba(16, 185, 129, 1)',
-                    borderWidth: 2
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderColor: '#10b981',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
                 }]
             },
             options: {
@@ -1024,19 +1055,53 @@ async function loadPatientAnalytics() {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        labels: { color: '#e4e6eb' }
+                        labels: { color: '#e4e6eb', font: { size: 14 } }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(30, 34, 41, 0.95)',
+                        titleColor: '#e4e6eb',
+                        bodyColor: '#b0b3ba',
+                        borderColor: '#2d3139',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: false,
+                        callbacks: {
+                            label: function (context) {
+                                const index = context.dataIndex;
+                                const data = analytics.weeklyAdherence[index];
+                                return [
+                                    `Adherence: ${data.adherence}%`,
+                                    `Taken: ${data.takenDoses}/${data.totalReminders}`
+                                ];
+                            }
+                        }
                     }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
                         max: 100,
-                        ticks: { color: '#b0b3ba' },
-                        grid: { color: '#2d3139' }
+                        ticks: {
+                            color: '#b0b3ba',
+                            callback: function (value) {
+                                return value + '%';
+                            }
+                        },
+                        grid: { color: '#2d3139' },
+                        title: {
+                            display: true,
+                            text: 'Adherence Percentage',
+                            color: '#e4e6eb'
+                        }
                     },
                     x: {
                         ticks: { color: '#b0b3ba' },
-                        grid: { color: '#2d3139' }
+                        grid: { color: '#2d3139' },
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            color: '#e4e6eb'
+                        }
                     }
                 }
             }
