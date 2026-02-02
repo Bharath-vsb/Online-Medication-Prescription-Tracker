@@ -1,7 +1,0 @@
-project_id = "wygvgrkkybpwragckwxp"
-
-[functions.send-reminder-notification]
-verify_jwt = false
-
-[functions.drug-info]
-verify_jwt = true
