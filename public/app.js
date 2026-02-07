@@ -521,7 +521,10 @@ window.addMedicineEntry = function () {
 
 async function loadDoctorAnalytics() {
     try {
-        const analytics = await apiCall('/doctor/analytics');
+        const [analytics, weeklyData] = await Promise.all([
+            apiCall('/doctor/analytics'),
+            apiCall('/doctor/analytics/weekly')
+        ]);
 
         const content = document.getElementById('doctorContent');
         content.innerHTML = `
@@ -555,7 +558,83 @@ async function loadDoctorAnalytics() {
                     <div class="stat-description">Medication compliance</div>
                 </div>
             </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Prescription Trend (Last 7 Days)</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="prescriptionTrendChart"></canvas>
+                </div>
+            </div>
         `;
+
+        // Create line chart
+        const ctx = document.getElementById('prescriptionTrendChart');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: weeklyData.prescriptions.map(d => {
+                    const date = new Date(d.date);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }),
+                datasets: [{
+                    label: 'Prescriptions Created',
+                    data: weeklyData.prescriptions.map(d => d.count),
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#3b82f6',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#e4e6eb', font: { size: 14 } }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(30, 34, 41, 0.95)',
+                        titleColor: '#e4e6eb',
+                        bodyColor: '#b0b3ba',
+                        borderColor: '#2d3139',
+                        borderWidth: 1,
+                        padding: 12
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#b0b3ba',
+                            stepSize: 1
+                        },
+                        grid: { color: '#2d3139' },
+                        title: {
+                            display: true,
+                            text: 'Prescriptions',
+                            color: '#e4e6eb'
+                        }
+                    },
+                    x: {
+                        ticks: { color: '#b0b3ba' },
+                        grid: { color: '#2d3139' },
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            color: '#e4e6eb'
+                        }
+                    }
+                }
+            }
+        });
     } catch (error) {
         console.error('Error loading analytics:', error);
     }
@@ -1334,6 +1413,87 @@ window.openAddInventoryModal = async function () {
     });
 };
 
+window.editInventory = async function (id) {
+    try {
+        // Get all inventory items to find the one being edited
+        const inventory = await apiCall('/inventory');
+        const item = inventory.find(inv => inv.id === id);
+
+        if (!item) {
+            alert('Inventory item not found');
+            return;
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Edit Inventory - ${item.medicine_name}</h3>
+                    <button class="close-modal">×</button>
+                </div>
+                
+                <form id="editInventoryForm">
+                    <div class="form-group">
+                        <label>Medicine</label>
+                        <input type="text" value="${item.medicine_name}" disabled>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Batch Number</label>
+                        <input type="text" id="editBatchNumber" value="${item.batch_number}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Expiry Date</label>
+                        <input type="date" id="editExpiryDate" value="${new Date(item.expiry_date).toISOString().split('T')[0]}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Stock Quantity</label>
+                        <input type="number" id="editStockQuantity" value="${item.stock_quantity}" min="0" required>
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Update Stock</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        modal.querySelectorAll('.close-modal').forEach(btn => {
+            btn.addEventListener('click', () => modal.remove());
+        });
+
+        document.getElementById('editInventoryForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const batchNumber = document.getElementById('editBatchNumber').value;
+            const expiryDate = document.getElementById('editExpiryDate').value;
+            const stockQuantity = document.getElementById('editStockQuantity').value;
+
+            try {
+                await apiCall(`/inventory/${id}`, 'PUT', {
+                    batchNumber,
+                    expiryDate,
+                    stockQuantity
+                });
+
+                modal.remove();
+                loadPharmacistInventory();
+            } catch (error) {
+                alert('Error updating inventory: ' + error.message);
+            }
+        });
+    } catch (error) {
+        alert('Error loading inventory data: ' + error.message);
+    }
+};
+
+
 window.deleteInventory = async function (id) {
     if (!confirm('Are you sure you want to delete this item?')) return;
 
@@ -1477,7 +1637,10 @@ window.sellMedicine = async function (prescriptionId) {
 
 async function loadPharmacistAnalytics() {
     try {
-        const analytics = await apiCall('/pharmacist/analytics');
+        const [analytics, weeklyData] = await Promise.all([
+            apiCall('/pharmacist/analytics'),
+            apiCall('/pharmacist/analytics/weekly')
+        ]);
 
         const content = document.getElementById('pharmacistContent');
         content.innerHTML = `
@@ -1505,7 +1668,83 @@ async function loadPharmacistAnalytics() {
                     <div class="stat-description">Last 30 days</div>
                 </div>
             </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Sales Trend (Last 7 Days)</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="salesTrendChart"></canvas>
+                </div>
+            </div>
         `;
+
+        // Create line chart
+        const ctx = document.getElementById('salesTrendChart');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: weeklyData.sales.map(d => {
+                    const date = new Date(d.date);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }),
+                datasets: [{
+                    label: 'Medicines Sold',
+                    data: weeklyData.sales.map(d => d.count),
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderColor: '#10b981',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#e4e6eb', font: { size: 14 } }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(30, 34, 41, 0.95)',
+                        titleColor: '#e4e6eb',
+                        bodyColor: '#b0b3ba',
+                        borderColor: '#2d3139',
+                        borderWidth: 1,
+                        padding: 12
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#b0b3ba',
+                            stepSize: 1
+                        },
+                        grid: { color: '#2d3139' },
+                        title: {
+                            display: true,
+                            text: 'Sales',
+                            color: '#e4e6eb'
+                        }
+                    },
+                    x: {
+                        ticks: { color: '#b0b3ba' },
+                        grid: { color: '#2d3139' },
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            color: '#e4e6eb'
+                        }
+                    }
+                }
+            }
+        });
     } catch (error) {
         console.error('Error loading analytics:', error);
     }
@@ -1608,12 +1847,12 @@ async function loadAdminApprovals() {
                             <tbody>
                                 ${pendingUsers.map(user => `
                                     <tr>
-                                        <td>${user.fullName}</td>
+                                        <td>${user.fullName || user.full_name || 'N/A'}</td>
                                         <td>${user.email}</td>
                                         <td><span class="badge badge-info">${user.role}</span></td>
                                         <td>${user.mobile}</td>
-                                        <td>${user.medicalLicenseNumber || '-'}</td>
-                                        <td>${new Date(user.createdAt).toLocaleDateString()}</td>
+                                        <td>${user.medicalLicenseNumber || user.medical_license_number || '-'}</td>
+                                        <td>${new Date(user.createdAt || user.created_at).toLocaleDateString()}</td>
                                         <td>
                                             <button class="btn btn-success" style="padding: 0.5rem 1rem; font-size: 0.875rem;" 
                                                 onclick="updateUserStatus(${user.id}, 'approved')">Approve</button>
@@ -1643,16 +1882,42 @@ window.updateUserStatus = async function (userId, status) {
 };
 
 async function loadAdminUsers() {
+    const content = document.getElementById('adminContent');
+    content.innerHTML = `
+        <div class="page-header">
+            <h1>Users Management</h1>
+            <p>Manage all system users</p>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" data-view="users">User List</div>
+            <div class="tab" data-view="analytics">Analytics</div>
+        </div>
+        
+        <div id="adminUsersContent"></div>
+    `;
+
+    // Tab handlers
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            const view = tab.dataset.view;
+            if (view === 'users') loadAdminUsersList();
+            if (view === 'analytics') loadAdminUserAnalytics();
+        });
+    });
+
+    loadAdminUsersList();
+}
+
+async function loadAdminUsersList() {
     try {
         const users = await apiCall('/admin/users');
 
-        const content = document.getElementById('adminContent');
+        const content = document.getElementById('adminUsersContent');
         content.innerHTML = `
-            <div class="page-header">
-                <h1>Users Management</h1>
-                <p>Manage all system users</p>
-            </div>
-            
             <div class="card">
                 <div class="table-container">
                     <table>
@@ -1669,7 +1934,7 @@ async function loadAdminUsers() {
                         <tbody>
                             ${users.map(user => `
                                 <tr>
-                                    <td>${user.fullName}</td>
+                                    <td>${user.fullName || user.full_name || 'N/A'}</td>
                                     <td>${user.email}</td>
                                     <td><span class="badge badge-info">${user.role}</span></td>
                                     <td>
@@ -1701,6 +1966,117 @@ async function loadAdminUsers() {
         `;
     } catch (error) {
         console.error('Error loading users:', error);
+    }
+}
+
+async function loadAdminUserAnalytics() {
+    try {
+        const analytics = await apiCall('/admin/users/analytics');
+
+        const content = document.getElementById('adminUsersContent');
+        content.innerHTML = `
+            <div class="card">
+                <div class="card-header">
+                    <h3>Doctor Registrations (Last 7 Days)</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="doctorRegistrationsChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Patient Registrations (Last 7 Days)</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="patientRegistrationsChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Pharmacist Registrations (Last 7 Days)</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="pharmacistRegistrationsChart"></canvas>
+                </div>
+            </div>
+        `;
+
+        // Create charts
+        const chartConfig = (data, label, color) => ({
+            type: 'line',
+            data: {
+                labels: data.map(d => {
+                    const date = new Date(d.date);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }),
+                datasets: [{
+                    label: label,
+                    data: data.map(d => d.count),
+                    backgroundColor: `${color}20`,
+                    borderColor: color,
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: color,
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#e4e6eb', font: { size: 14 } }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(30, 34, 41, 0.95)',
+                        titleColor: '#e4e6eb',
+                        bodyColor: '#b0b3ba',
+                        borderColor: '#2d3139',
+                        borderWidth: 1,
+                        padding: 12
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#b0b3ba',
+                            stepSize: 1
+                        },
+                        grid: { color: '#2d3139' },
+                        title: {
+                            display: true,
+                            text: 'Registrations',
+                            color: '#e4e6eb'
+                        }
+                    },
+                    x: {
+                        ticks: { color: '#b0b3ba' },
+                        grid: { color: '#2d3139' },
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            color: '#e4e6eb'
+                        }
+                    }
+                }
+            }
+        });
+
+        new Chart(document.getElementById('doctorRegistrationsChart'),
+            chartConfig(analytics.doctors, 'Doctor Registrations', '#3b82f6'));
+        new Chart(document.getElementById('patientRegistrationsChart'),
+            chartConfig(analytics.patients, 'Patient Registrations', '#10b981'));
+        new Chart(document.getElementById('pharmacistRegistrationsChart'),
+            chartConfig(analytics.pharmacists, 'Pharmacist Registrations', '#f59e0b'));
+    } catch (error) {
+        console.error('Error loading user analytics:', error);
     }
 }
 

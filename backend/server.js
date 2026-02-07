@@ -375,6 +375,50 @@ app.get('/api/doctor/analytics', authenticate, authorize('doctor'), async (req, 
   }
 });
 
+// Doctor weekly analytics
+app.get('/api/doctor/analytics/weekly', authenticate, authorize('doctor'), async (req, res) => {
+  try {
+    // Get last 7 days of prescription creation
+    const [weeklyData] = await db.query(`
+      SELECT 
+        DATE(created_at) as prescription_date,
+        COUNT(*) as count
+      FROM prescriptions
+      WHERE doctor_id = ?
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      GROUP BY DATE(created_at)
+      ORDER BY prescription_date ASC
+    `, [req.userId]);
+
+    // Get last 7 dates
+    const dates = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dates.push(date.toISOString().split('T')[0]);
+    }
+
+    // Initialize data structure
+    const prescriptionData = dates.map(date => ({ date, count: 0 }));
+
+    // Fill in actual data
+    weeklyData.forEach(row => {
+      const dateStr = new Date(row.prescription_date).toISOString().split('T')[0];
+      const dateIndex = dates.indexOf(dateStr);
+      if (dateIndex !== -1) {
+        prescriptionData[dateIndex].count = row.count;
+      }
+    });
+
+    res.json({
+      prescriptions: prescriptionData
+    });
+  } catch (error) {
+    console.error('Doctor weekly analytics error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get patients list
 app.get('/api/patients', authenticate, authorize('doctor'), async (req, res) => {
   try {
@@ -685,6 +729,49 @@ app.get('/api/pharmacist/analytics', authenticate, authorize('pharmacist'), asyn
   }
 });
 
+// Pharmacist weekly analytics
+app.get('/api/pharmacist/analytics/weekly', authenticate, authorize('pharmacist'), async (req, res) => {
+  try {
+    // Get last 7 days of sales
+    const [weeklyData] = await db.query(`
+      SELECT 
+        DATE(sold_at) as sale_date,
+        COUNT(*) as count
+      FROM sold_medicines
+      WHERE sold_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      GROUP BY DATE(sold_at)
+      ORDER BY sale_date ASC
+    `);
+
+    // Get last 7 dates
+    const dates = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dates.push(date.toISOString().split('T')[0]);
+    }
+
+    // Initialize data structure
+    const salesData = dates.map(date => ({ date, count: 0 }));
+
+    // Fill in actual data
+    weeklyData.forEach(row => {
+      const dateStr = new Date(row.sale_date).toISOString().split('T')[0];
+      const dateIndex = dates.indexOf(dateStr);
+      if (dateIndex !== -1) {
+        salesData[dateIndex].count = row.count;
+      }
+    });
+
+    res.json({
+      sales: salesData
+    });
+  } catch (error) {
+    console.error('Pharmacist weekly analytics error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ==================== PATIENT ROUTES ====================
 
 // Get patient prescriptions
@@ -927,7 +1014,16 @@ app.get('/api/admin/users', authenticate, authorize('admin'), async (req, res) =
     query += ' ORDER BY created_at DESC';
 
     const [users] = await db.query(query, params);
-    res.json(users);
+
+    // Format response to match frontend expectations
+    const formatted = users.map(u => ({
+      ...u,
+      fullName: u.full_name,
+      medicalLicenseNumber: u.medical_license_number,
+      createdAt: u.created_at
+    }));
+
+    res.json(formatted);
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -1059,6 +1155,56 @@ app.get('/api/admin/analytics', authenticate, authorize('admin'), async (req, re
     });
   } catch (error) {
     console.error('Admin analytics error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin user analytics - weekly registration trends
+app.get('/api/admin/users/analytics', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    // Get last 7 days of user registrations grouped by role
+    const [weeklyData] = await db.query(`
+      SELECT 
+        DATE(created_at) as registration_date,
+        role,
+        COUNT(*) as count
+      FROM users
+      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      GROUP BY DATE(created_at), role
+      ORDER BY registration_date ASC
+    `);
+
+    // Get last 7 dates
+    const dates = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dates.push(date.toISOString().split('T')[0]);
+    }
+
+    // Initialize data structure
+    const roleData = {
+      doctor: dates.map(date => ({ date, count: 0 })),
+      patient: dates.map(date => ({ date, count: 0 })),
+      pharmacist: dates.map(date => ({ date, count: 0 }))
+    };
+
+    // Fill in actual data
+    weeklyData.forEach(row => {
+      const dateStr = new Date(row.registration_date).toISOString().split('T')[0];
+      const dateIndex = dates.indexOf(dateStr);
+      if (dateIndex !== -1 && roleData[row.role]) {
+        roleData[row.role][dateIndex].count = row.count;
+      }
+    });
+
+    res.json({
+      doctors: roleData.doctor,
+      patients: roleData.patient,
+      pharmacists: roleData.pharmacist
+    });
+  } catch (error) {
+    console.error('Admin user analytics error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
