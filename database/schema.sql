@@ -169,7 +169,34 @@ CREATE TABLE audit_logs (
 
 -- Insert default admin user (password: admin123)
 INSERT INTO users (full_name, email, mobile, password, role, status, enabled) VALUES
-('System Admin', 'admin@healthcare.com', '1234567890', '$2a$10$rZ5qK8qK8qK8qK8qK8qK8uYvYvYvYvYvYvYvYvYvYvYvYvYvYvYvY', 'admin', 'approved', TRUE);
+('System Admin', 'admin@healthcare.com', '1234567890', '$2a$10$O7kRZOG8eBWtR9Sut0khH.4u7c.KPIK0OX.YGay9Xa4uJicnHOeNm', 'admin', 'approved', 1),
+('Test Admin', 'testadmin@test.com', '9999999999', '$2a$10$26hjMTx2jqZ1W1yD3BsOWO7GLNhQbN3JoWgM.s0MED4tUPyBMvply', 'admin', 'approved', 1),
+('Test Patient', 'testpatient@test.com', '8888888888', '$2a$10$mlteauKc7YBkMfxSPfq6v.BYmLWk7oeP8SBqwmnVaZhpvvmvX8ZGO', 'patient', 'approved', 1),
+('tony', 'vbharathvsb@gmail.com', '1234567890', '$2a$10$fgZtA7i15N9D2t1JDNfAWO0vXLUiZjGT2Edf5P6lfHF0u3xOy4rmi', 'patient', 'approved', 1),
+('doctor', 'doctor@gmail.com', '1234567891', '$2a$10$qHlxnTR9R/4/sqqDYC1hhuCzwmyNio.giyOeLFrXUdHtdzm.Pw8ly', 'doctor', 'approved', 1),
+('pharmacist', 'pharmacist@gmail.com', '1234567892', '$2a$10$vUwxSR5NXBLnh5GlW38KuOQxOCSpakN15gB45g8b92ebX9j6Pk8I2', 'pharmacist', 'approved', 1),
+('Verification Doctor 1', 'verifdoc1@test.com', '1112223334', 'password', 'doctor', 'approved', 1),
+('Verification Doctor 2', 'verifdoc2@test.com', '5556667778', 'password', 'doctor', 'approved', 1),
+('Test Admin', 'admin1783236017250@test.com', '1111111111', '$2a$10$0UEX01TsvuQEjZXLG2IJXuCDLaLvPicz82knjITSqUzjydk99WADy', 'admin', 'approved', 1),
+('Test Doctor', 'doc1783236017250@test.com', '2222222222', '$2a$10$Y5/Uu7NlRMT6Hd7fpLVXr.9PokIYENqVrTMAId5ChD96XPjVJnCN6', 'doctor', 'approved', 1),
+('Test Pharmacist', 'pharm1783236017250@test.com', '3333333333', '$2a$10$skI8InJLfAyUGZvBMlN/0Oc6kg/fGdWP4ibmABxfIpLsnUjzkAQiW', 'pharmacist', 'approved', 1),
+('Test Patient', 'pat1783236017250@test.com', '4444444444', '$2a$10$ONKc4218g3IllFXWohZytuDpHO5E2tzuVEMqdM8Ftx6DDTe9Y3RkG', 'patient', 'approved', 1),
+('Test Admin', 'admin1783236119159@test.com', '1111111111', '$2a$10$t9JkElLM8vTltY2XFuLg5O03FQG73vtJg6dAQUs0BD/Rz/VAoj8Aa', 'admin', 'approved', 1),
+('Test Doctor', 'doc1783236119159@test.com', '2222222222', '$2a$10$4q19cqVCY2OzuTl3./wHHuCkUHPu5jBcDNGHz5p9PbPImLPK2g90C', 'doctor', 'approved', 1),
+('Test Pharmacist', 'pharm1783236119159@test.com', '3333333333', '$2a$10$CNHR5J0MfvA6v.dMZVIqgeW5lvwQ1umNk5DgpYcjssBXvEt/t.6dO', 'pharmacist', 'approved', 1),
+('Test Patient', 'pat1783236119159@test.com', '4444444444', '$2a$10$5SluVoqmCjptjfmfNaAns.p1W93ZNQpAtdXbkqbwvjFv77OgWVvUW', 'patient', 'approved', 1),
+('Test Admin', 'admin1783236193203@test.com', '1111111111', '$2a$10$uMpzEhOFl139koG5HA4EXus3BxCzcVW4kGJ.YSdtmMyp96nhEFIO2', 'admin', 'approved', 1),
+('Test Doctor', 'doc1783236193203@test.com', '2222222222', '$2a$10$zle/6xXBHhfzIeIvfeZNC.cUyQQGt7WGKooPhD6g6nwp8QyyZmOly', 'doctor', 'approved', 1),
+('Test Pharmacist', 'pharm1783236193203@test.com', '3333333333', '$2a$10$eWNht2iSM6GklvLb9ZPqruAX7XJFtxy.anirmK3rtBRpeaW2.OCLG', 'pharmacist', 'approved', 1),
+('Test Patient', 'pat1783236193203@test.com', '4444444444', '$2a$10$RSfBlDu5y1KDLe8SLCS1Zu8pkRCp2OMXBqurkiUsYa8EukiepP46.', 'patient', 'approved', 1),
+('Test Admin', 'admin1783236287349@test.com', '1111111111', '$2a$10$sv8QP/qyaDkdN./g9hONxeDPh996a9HBqgS3E7DD1gfvdQhHtXA.S', 'admin', 'approved', 1),
+('Test Doctor', 'doc1783236287349@test.com', '2222222222', '$2a$10$qleQkeZkELCBUlmxiKkiq.2ne/iaE9ThcyHJXTHGox4GAAFM/fl4e', 'doctor', 'approved', 1),
+('Test Pharmacist', 'pharm1783236287349@test.com', '3333333333', '$2a$10$ae/ASA3QNsqF1u.b11S5xO0qwcoo9hSjV2H.V1B89pFFHHvIAPs0W', 'pharmacist', 'approved', 1),
+('Test Patient', 'pat1783236287349@test.com', '4444444444', '$2a$10$EVadZCC1cQWXL1S.CYtvFODXuJRJd4.RWnZn.OeBWpm86V6Tu8qQG', 'patient', 'approved', 1),
+('Test Admin', 'admin1783236364185@test.com', '1111111111', '$2a$10$w0J1pPqwcTui0oZyWKc2xuLS/aJ8.f4/wIsn2QL2YBW9ZAXs5A/NC', 'admin', 'approved', 1),
+('Test Doctor', 'doc1783236364185@test.com', '2222222222', '$2a$10$rODb93UWcVO57..dx58Fz.Fuzl1dCV65T2tU4bNj5Ob8BiWUmdp3O', 'doctor', 'approved', 1),
+('Test Pharmacist', 'pharm1783236364185@test.com', '3333333333', '$2a$10$1Z9qGQZ3pl7Hpk.amKG/LegPe66Rv9NTPd7uChp1SLBTefcmlTXM6', 'pharmacist', 'approved', 1),
+('Test Patient', 'pat1783236364185@test.com', '4444444444', '$2a$10$AZJWe493BEHzmEmTpvMJNuqPc4KzDLcZk.c1eEvkUvczKelRMxTNe', 'patient', 'approved', 1);
 
 -- Insert sample medicines
 INSERT INTO medicines (name) VALUES

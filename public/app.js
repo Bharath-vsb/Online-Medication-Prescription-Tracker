@@ -180,6 +180,11 @@ function logout() {
     dashboardPage.classList.add('hidden');
     loginPage.classList.remove('hidden');
     dashboardPage.innerHTML = '';
+    
+    // Cleanup AI Chat state on logout
+    if (window.cleanupAIChat) {
+        window.cleanupAIChat();
+    }
 }
 
 // Show dashboard based on role
@@ -201,6 +206,11 @@ function showDashboard() {
         case 'admin':
             renderAdminDashboard();
             break;
+    }
+    
+    // Initialize AI Chat Assistant when dashboard loads
+    if (window.initAIChat) {
+        window.initAIChat();
     }
 }
 

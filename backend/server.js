@@ -6,6 +6,7 @@ const path = require('path');
 require('dotenv').config();
 
 const db = require('./config/database');
+const aiRoutes = require('./ai/routes/ai.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +16,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
+
+// ==================== AI MODULE ROUTES ====================
+// Modular AI agent routes mounted under /api/ai
+// Isolated from existing business routes to allow independent development
+app.use('/api/ai', aiRoutes);
 
 // Middleware for authentication
 const authenticate = (req, res, next) => {
@@ -193,6 +199,12 @@ app.post('/api/prescriptions', authenticate, authorize('doctor'), async (req, re
 
     if (!patientId || !medicines || medicines.length === 0) {
       return res.status(400).json({ error: 'Patient and medicines are required' });
+    }
+
+    // Verify patient exists and is actually a patient
+    const [patients] = await connection.query('SELECT id FROM users WHERE id = ? AND role = "patient"', [patientId]);
+    if (patients.length === 0) {
+      return res.status(404).json({ error: 'Patient not found' });
     }
 
     await connection.beginTransaction();
