@@ -1,8 +1,13 @@
 # 🏥 Online Medication and Prescription Tracker
 
-A comprehensive, full-stack healthcare management system with role-based access control, dark UI theme, and complete medication tracking capabilities.
+A comprehensive, full-stack healthcare management system with role-based access control, a dark UI theme, intelligent AI assistance, and complete medication tracking capabilities backed by a robust MySQL database.
 
 ## 🌟 Features
+
+### 🤖 Intelligent AI Assistant
+- **Context-Aware Chat**: Built-in AI chat interface (`/api/ai/chat`) utilizing advanced LLMs (Groq / Gemini) to assist users.
+- **Role-Specific Tools**: The AI dynamically selects tools based on the logged-in user's role (Admin, Doctor, Pharmacist, Patient).
+- **Automated Insights**: Ask the AI to generate analytics, check low-stock inventory, summarize patient adherence, or look up prescription histories directly via natural language.
 
 ### 🔐 Authentication & Authorization
 - **Multi-role system**: Doctor, Patient, Pharmacist, Admin
@@ -58,168 +63,85 @@ A comprehensive, full-stack healthcare management system with role-based access 
 
 ## 🗄️ Database Schema
 
-The system uses an in-memory database with the following tables:
+The system uses a **MySQL** relational database with the following tables:
 
-1. **Users**
-   - id, fullName, email, mobile, password, role
-   - medicalLicenseNumber (for doctors)
-   - status (pending/approved/rejected)
-   - enabled (boolean)
-
-2. **Medicines Master**
-   - id, name, createdAt
-
-3. **Inventory Stock**
-   - id, medicineId, medicineName
-   - batchNumber, expiryDate, stockQuantity
-
-4. **Prescriptions**
-   - id, prescriptionGroupId, doctorId, patientId
-   - medicineId, medicineName
-   - startDate, endDate, duration, frequency
-   - dosesPerDay, totalQuantity, status, bought
-
-5. **Sold Medicines**
-   - id, prescriptionId, medicineId
-   - quantity, soldAt
-
-6. **Reminders**
-   - id, prescriptionId, patientId
-   - reminderTime, status
-
-7. **Dose Confirmations**
-   - id, reminderId, prescriptionId, patientId
-   - status, confirmedAt
-
-8. **Notifications**
-   - id, userId, message, type, read
-
-9. **Audit Logs**
-   - id, adminId, action, targetUserId, timestamp
+1. **users**: id, full_name, email, mobile, password, role, status, enabled, etc.
+2. **medicines**: id, name, created_at
+3. **inventory**: id, medicine_id, batch_number, expiry_date, stock_quantity
+4. **prescriptions**: id, doctor_id, patient_id, medicine_id, start_date, end_date, doses_per_day, status, bought, etc.
+5. **sold_medicines**: id, prescription_id, medicine_id, quantity, sold_at
+6. **reminders**: id, prescription_id, patient_id, reminder_time, status
+7. **dose_confirmations**: id, reminder_id, status, confirmed_at
+8. **notifications**: id, user_id, message, type, is_read
+9. **audit_logs**: id, admin_id, action, target_user_id
+10. **ai_chat_history**: Stores conversation context for the AI assistant
 
 ## 🚀 Installation & Setup
 
 ### Prerequisites
 - Node.js (v14 or higher)
 - npm or yarn
+- **MySQL Server** (running locally or remote)
 
 ### Installation Steps
 
-1. **Install dependencies**
+1. **Clone and Install dependencies**
    ```bash
    npm install
    ```
 
-2. **Start the server**
+2. **Configure Environment Variables**
+   - Copy `.env.example` to `.env`
+   - Fill in your MySQL database credentials and AI API keys (e.g., `GROQ_API_KEY`, `GEMINI_API_KEY`).
+   ```env
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASSWORD=your_password
+   DB_NAME=healthcare_management
+   JWT_SECRET=your_jwt_secret_key
+   GROQ_API_KEY=your_groq_key_here
+   ```
+
+3. **Initialize the Database**
+   This script creates the schema, runs migrations, and pre-loads sample data and all your approved accounts.
    ```bash
+   npm run init-db
+   ```
+
+4. **Start the server**
+   ```bash
+   # Development Mode (auto-reload)
+   npm run dev
+
+   # Production Mode
    npm start
    ```
 
-3. **Access the application**
+5. **Access the application**
    - Open browser: `http://localhost:3000`
-
-### Development Mode
-```bash
-npm run dev
-```
 
 ## 📝 Usage Guide
 
 ### First Time Setup
 
 1. **Create Admin Account**
-   - Click "Sign Up"
-   - Fill in details
-   - Select role: "Admin"
-   - Enter secret code: `0000`
-   - Login with admin credentials
+   - Click "Sign Up", fill in details, select "Admin" role, and enter secret code `0000`.
+   - *Note: Default admin accounts may already be provisioned if you ran `npm run init-db`.*
 
-2. **Register as Doctor**
-   - Sign up with role "Doctor"
-   - Provide Medical License Number
-   - Wait for admin approval
-   - Once approved, login to access dashboard
+2. **Register as Doctor / Pharmacist**
+   - Sign up with the respective role.
+   - Wait for Admin approval.
+   - Once approved, log in to access your dashboard.
 
-3. **Register as Pharmacist**
-   - Sign up with role "Pharmacist"
-   - Wait for admin approval
-   - Once approved, login to manage inventory
+3. **Register as Patient**
+   - Sign up with role "Patient". Auto-approved.
 
-4. **Register as Patient**
-   - Sign up with role "Patient"
-   - Auto-approved, can login immediately
-
-### Doctor Workflow
-
-1. **Create Prescription**
-   - Select patient from list
-   - Choose medicine (or add new)
-   - Set start date and duration
-   - Select frequency
-   - System auto-calculates end date and total quantity
-
-2. **View Prescriptions**
-   - Active tab: Current prescriptions
-   - History tab: Completed prescriptions
-
-3. **Analytics**
-   - Total prescriptions count
-   - Active vs completed breakdown
-   - Average patient adherence
-
-### Pharmacist Workflow
-
-1. **Manage Inventory**
-   - Add new medicines with batch/expiry/stock
-   - Update existing inventory
-   - Delete items
-   - Monitor low stock alerts
-   - Track expired medicines
-
-2. **Sell Prescriptions**
-   - View active prescriptions
-   - Check available stock
-   - Click "Sell" to fulfill
-   - Stock auto-reduces
-   - Reminders auto-generated for patient
-
-3. **View Sales History**
-   - Track all sold medicines
-   - View quantities and dates
-
-### Patient Workflow
-
-1. **View Prescriptions**
-   - See active and completed prescriptions
-   - Check if medicines are bought
-
-2. **Medication Reminders**
-   - Automatic reminders when medicine is bought
-   - Based on prescription frequency
-   - Edit reminder times
-   - Confirm taken or mark missed
-
-3. **Track Adherence**
-   - View overall adherence percentage
-   - Weekly adherence graph
-   - Monitor compliance
-
-### Admin Workflow
-
-1. **Approve Users**
-   - Review pending doctor/pharmacist registrations
-   - Approve or reject
-   - Users notified of status
-
-2. **Manage Users**
-   - Enable/disable accounts
-   - Delete users
-   - View all user details
-
-3. **Monitor System**
-   - View all prescriptions
-   - Check inventory status
-   - System-wide analytics
+### Leveraging the AI Assistant
+Click the **AI Chat** button (bottom right) to open the smart assistant. Depending on your role, you can ask things like:
+- **Admin**: "Show me the system analytics for this week." or "Are there any pending user approvals?"
+- **Doctor**: "What is the adherence rate for patient John Doe?"
+- **Pharmacist**: "Which medicines are low in stock?" or "List all expired inventory."
+- **Patient**: "When is my next dose due?" or "Summarize my active prescriptions."
 
 ## 🔧 Configuration
 
@@ -231,164 +153,74 @@ if (role === 'admin' && secretCode !== 'YOUR_NEW_CODE') {
 }
 ```
 
-### Change JWT Secret
-Edit `server.js`:
-```javascript
-const JWT_SECRET = 'your-secure-secret-key';
-```
-
-### Change Port
-Edit `server.js`:
-```javascript
-const PORT = 3000; // Change to your preferred port
-```
-
 ## 🔒 Security Features
-
-- Password hashing with bcrypt
-- JWT token authentication
-- Role-based access control
-- Approval workflow for sensitive roles
-- Status checking at login
+- Password hashing with **bcrypt**
+- **JWT token authentication** for API routes and AI chat endpoints
+- Role-based access control (RBAC) enforced at the API level
+- Approval workflow for sensitive roles (Doctors/Pharmacists)
+- Status checking at login (pending/rejected/disabled accounts are blocked)
 - Audit logging for admin actions
-- Input validation
-- XSS protection
+- Input validation and XSS protection
 
 ## 🎯 Business Rules
 
-### Prescription Rules
-- Doctors cannot see inventory stock levels
-- End date auto-calculated from start date + duration
-- Frequency determines doses per day
-- Alert sent to pharmacist if medicine not in inventory
-
-### Selling Rules
-- Can only sell once per prescription
-- Requires sufficient stock
-- Automatically reduces inventory
-- Marks prescription as "bought"
-- Generates patient reminders
+### Prescription & Selling Rules
+- Doctors cannot see inventory stock levels.
+- End date auto-calculated from start date + duration.
+- Pharmacists can only sell once per prescription. Requires sufficient stock, which is automatically reduced.
+- Selling triggers auto-generation of patient reminders.
 
 ### Reminder Rules
-- Only shown for active prescriptions
-- Only shown if medicine is bought
-- Auto-generated based on frequency
-- Patient can edit times but not count
-- Stops after prescription completion
+- Only shown for active prescriptions that have been bought.
+- Auto-generated based on frequency.
+- Patient can edit reminder times but not count.
 
 ### Inventory Rules
-- Low stock alert at ≤100 units
-- Expired medicines clearly marked
-- Batch tracking for safety
-
-## 📊 Frequency Options
-
-- **Once per day** → 1 dose/day
-- **Twice per day** → 2 doses/day
-- **Three times per day** → 3 doses/day
-- **Four times per day** → 4 doses/day
-- **Every 6 hours** → 4 doses/day
-- **Every 8 hours** → 3 doses/day
+- Low stock alert triggers at ≤100 units.
+- Expired medicines clearly marked.
+- Batch tracking for safety.
 
 ## 🌐 API Endpoints
 
 ### Authentication
 - `POST /api/auth/signup` - Register new user
 - `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Get current user
 
-### Doctor
-- `GET /api/medicines` - Get all medicines
-- `POST /api/prescriptions` - Create prescription
-- `GET /api/doctor/prescriptions` - Get prescriptions
-- `GET /api/doctor/analytics` - Get analytics
-- `GET /api/patients` - Get patients list
+### AI Assistant (Modular)
+- `POST /api/ai/chat` - Interact with the AI assistant (context-aware)
+- `DELETE /api/ai/history` - Clear user chat history
 
-### Pharmacist
-- `POST /api/inventory` - Add inventory
-- `GET /api/inventory` - Get inventory
-- `PUT /api/inventory/:id` - Update inventory
-- `DELETE /api/inventory/:id` - Delete inventory
-- `GET /api/pharmacist/prescriptions` - Get prescriptions
-- `POST /api/pharmacist/sell/:id` - Sell medicine
-- `GET /api/pharmacist/analytics` - Get analytics
-
-### Patient
-- `GET /api/patient/prescriptions` - Get prescriptions
-- `GET /api/patient/reminders` - Get reminders
-- `PUT /api/patient/reminders/:id` - Update reminder
-- `POST /api/patient/reminders/:id/confirm` - Confirm/skip dose
-- `GET /api/patient/analytics` - Get analytics
-
-### Admin
-- `GET /api/admin/users` - Get all users
-- `PUT /api/admin/users/:id/status` - Approve/reject user
-- `PUT /api/admin/users/:id/toggle` - Enable/disable user
-- `DELETE /api/admin/users/:id` - Delete user
-- `GET /api/admin/prescriptions` - Get all prescriptions
-- `GET /api/admin/analytics` - Get analytics
-
-## 🔄 Automation Features
-
-1. **Auto-completion**: Prescriptions auto-complete after end date
-2. **Auto-calculation**: End dates and quantities calculated automatically
-3. **Auto-reminders**: Generated when medicine is sold
-4. **Auto-alerts**: Low stock and expired medicine notifications
-5. **Auto-sync**: Medicine dropdowns update when new medicines added
-
-## 📱 Responsive Design
-
-- Mobile-friendly layouts
-- Adaptive navigation
-- Touch-optimized controls
-- Responsive tables
-- Flexible grid system
+### Core Modules
+- **Doctor**: `/api/medicines`, `/api/prescriptions`, `/api/doctor/analytics`, `/api/patients`
+- **Pharmacist**: `/api/inventory` (CRUD), `/api/pharmacist/prescriptions`, `/api/pharmacist/sell/:id`, `/api/pharmacist/analytics`
+- **Patient**: `/api/patient/prescriptions`, `/api/patient/reminders` (CRUD/confirm)
+- **Admin**: `/api/admin/users` (approve/toggle/delete), `/api/admin/prescriptions`, `/api/admin/analytics`
 
 ## 🛠️ Technology Stack
 
 ### Backend
-- Node.js
-- Express.js
-- JWT for authentication
-- bcrypt for password hashing
+- **Node.js** & **Express.js**
+- **MySQL2** (Promise-based database driver)
+- **JWT** (Authentication) & **bcrypt** (Security)
+- Modular Architecture separating Core Business Logic and AI Integration
 
 ### Frontend
 - Vanilla JavaScript (no framework)
-- HTML5
-- CSS3 with custom properties
-- Chart.js for analytics
+- HTML5 & CSS3 with Custom Properties
+- Chart.js for Analytics Visualizations
 - Google Fonts (JetBrains Mono + Manrope)
 
-### Storage
-- In-memory database (for demonstration)
-- Can be replaced with MongoDB/PostgreSQL
-
-## 🔮 Future Enhancements
-
-- Database integration (MongoDB/PostgreSQL)
-- Email notifications
-- SMS reminders
-- Prescription PDF generation
-- Advanced reporting
-- Multi-language support
-- Mobile app (React Native)
-- Real-time notifications (Socket.io)
-- Barcode scanning
-- Insurance integration
+### AI Integration
+- **Groq API** / **Gemini API** for ultra-fast LLM responses
+- Extensible Tool-Calling Architecture
 
 ## 📄 License
 
 MIT License - feel free to use this project for learning or production.
 
-## 🤝 Support
-
-For issues, questions, or contributions, please open an issue on the repository.
-
 ---
 
-**Default Admin Credentials:**
+**Default Admin Credentials (if seeded):**
 - Email: admin@healthcare.com
-- Password: admin123
+- Password: (Your seeded password)
 - Role: Admin
-
-**Note**: In production, replace the in-memory database with a proper database system and update all security configurations.
