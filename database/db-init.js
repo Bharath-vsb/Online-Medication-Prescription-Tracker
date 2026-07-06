@@ -17,6 +17,7 @@ async function createConnection(withDatabase = true) {
     if (withDatabase) {
         config.database = process.env.DB_NAME || 'healthcare_management';
     }
+    return mysql.createConnection(config);
 }
 
 // ---------------------------------------------------------------------------
