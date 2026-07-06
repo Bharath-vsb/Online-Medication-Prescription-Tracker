@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api';
+const API_URL = `${window.location.origin}/api`;
 let currentUser = null;
 let authToken = null;
 
@@ -180,7 +180,7 @@ function logout() {
     dashboardPage.classList.add('hidden');
     loginPage.classList.remove('hidden');
     dashboardPage.innerHTML = '';
-    
+
     // Cleanup AI Chat state on logout
     if (window.cleanupAIChat) {
         window.cleanupAIChat();
@@ -207,7 +207,7 @@ function showDashboard() {
             renderAdminDashboard();
             break;
     }
-    
+
     // Initialize AI Chat Assistant when dashboard loads
     if (window.initAIChat) {
         window.initAIChat();
