@@ -1,8 +1,7 @@
 -- Healthcare Management System Database Schema
--- Drop existing database and create fresh
-DROP DATABASE IF EXISTS healthcare_management;
-CREATE DATABASE healthcare_management;
-USE healthcare_management;
+
+-- Railway already provides the database.
+-- Do not create or switch databases.
 
 -- =====================================================
 -- TABLE: users
