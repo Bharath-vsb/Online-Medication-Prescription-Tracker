@@ -353,9 +353,9 @@ app.get('/api/doctor/analytics', authenticate, authorize('doctor'), async (req, 
   try {
     const [stats] = await db.query(`
       SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+        COUNT(DISTINCT prescription_group_id) as total,
+        COUNT(DISTINCT CASE WHEN status = 'active' THEN prescription_group_id END) as active,
+        COUNT(DISTINCT CASE WHEN status = 'completed' THEN prescription_group_id END) as completed
       FROM prescriptions
       WHERE doctor_id = ?
     `, [req.userId]);
@@ -394,7 +394,7 @@ app.get('/api/doctor/analytics/weekly', authenticate, authorize('doctor'), async
     const [weeklyData] = await db.query(`
       SELECT 
         DATE(created_at) as prescription_date,
-        COUNT(*) as count
+        COUNT(DISTINCT prescription_group_id) as count
       FROM prescriptions
       WHERE doctor_id = ?
         AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
@@ -719,7 +719,7 @@ app.get('/api/pharmacist/analytics', authenticate, authorize('pharmacist'), asyn
   try {
     const [stats] = await db.query(`
       SELECT 
-        COUNT(*) as total_medicines,
+        COUNT(DISTINCT medicine_id) as total_medicines,
         SUM(CASE WHEN stock_quantity <= 100 THEN 1 ELSE 0 END) as low_stock_count
       FROM inventory
     `);
@@ -903,7 +903,12 @@ app.put('/api/patient/reminders/:id', authenticate, authorize('patient'), async 
     const { id } = req.params;
     const { reminderTime } = req.body;
 
-    await db.query('UPDATE reminders SET reminder_time = ? WHERE id = ?', [reminderTime, parseInt(id)]);
+    const dateObj = new Date(reminderTime);
+    if (isNaN(dateObj.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    await db.query('UPDATE reminders SET reminder_time = ? WHERE id = ?', [dateObj, parseInt(id)]);
 
     const [reminders] = await db.query('SELECT * FROM reminders WHERE id = ?', [parseInt(id)]);
     res.json(reminders[0]);
@@ -1154,7 +1159,7 @@ app.get('/api/admin/analytics', authenticate, authorize('admin'), async (req, re
       FROM users
     `);
 
-    const [prescriptionCount] = await db.query('SELECT COUNT(*) as total FROM prescriptions');
+    const [prescriptionCount] = await db.query('SELECT COUNT(DISTINCT prescription_group_id) as total FROM prescriptions');
     const [lowStock] = await db.query('SELECT COUNT(*) as count FROM inventory WHERE stock_quantity <= 100');
 
     res.json({

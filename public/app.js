@@ -1054,9 +1054,9 @@ window.editReminderTime = function (reminderId, currentTime) {
                         💡 Adjust the reminder time to fit your daily schedule
                     </p>
                 </div>
-                <div class="btn-group">
-                    <button type="button" class="btn btn-secondary close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Time</button>
+                <div class="btn-group" style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary close-modal" style="flex: 1;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Time</button>
                 </div>
             </form>
         </div>
