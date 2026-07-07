@@ -1,4 +1,6 @@
-const API_URL = `${window.location.origin}/api`;
+const API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:') 
+    ? 'https://online-medication-prescription-tracker-production.up.railway.app/api' 
+    : `${window.location.origin}/api`;
 let currentUser = null;
 let authToken = null;
 
@@ -218,6 +220,9 @@ function showDashboard() {
 async function renderDoctorDashboard() {
     dashboardPage.innerHTML = `
         <div class="dashboard">
+            <button class="mobile-menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('active')">
+                <i class="fas fa-bars"></i>
+            </button>
             <div class="sidebar">
                 <div class="sidebar-header">
                     <h2>Online Medication & Prescription Tracking</h2>
@@ -654,6 +659,9 @@ async function loadDoctorAnalytics() {
 async function renderPatientDashboard() {
     dashboardPage.innerHTML = `
         <div class="dashboard">
+            <button class="mobile-menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('active')">
+                <i class="fas fa-bars"></i>
+            </button>
             <div class="sidebar">
                 <div class="sidebar-header">
                     <h2>Online Medication & Prescription Tracking</h2>
@@ -1204,6 +1212,9 @@ async function loadPatientAnalytics() {
 async function renderPharmacistDashboard() {
     dashboardPage.innerHTML = `
         <div class="dashboard">
+            <button class="mobile-menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('active')">
+                <i class="fas fa-bars"></i>
+            </button>
             <div class="sidebar">
                 <div class="sidebar-header">
                     <h2>Online Medication & Prescription Tracking</h2>
@@ -1764,6 +1775,9 @@ async function loadPharmacistAnalytics() {
 async function renderAdminDashboard() {
     dashboardPage.innerHTML = `
         <div class="dashboard">
+            <button class="mobile-menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('active')">
+                <i class="fas fa-bars"></i>
+            </button>
             <div class="sidebar">
                 <div class="sidebar-header">
                     <h2>Online Medication & Prescription Tracking</h2>
@@ -2146,7 +2160,7 @@ async function loadAdminPrescriptions() {
                                             ${p.status}
                                         </span>
                                     </td>
-                                    <td>${new Date(p.createdAt).toLocaleDateString()}</td>
+                                    <td>${new Date(p.createdAt || p.created_at).toLocaleDateString()}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
