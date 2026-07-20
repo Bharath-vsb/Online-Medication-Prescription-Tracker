@@ -337,3 +337,381 @@ It serves as an excellent academic project while also showcasing practical skill
 
 ---
 
+---
+
+# 📂 Project Structure
+
+```
+Online-Medication-Prescription-Tracker
+│
+├── 📁 backend
+│   ├── 📁 config                # Database and application configuration
+│   ├── 📁 controllers           # Business logic for API requests
+│   ├── 📁 middleware            # JWT authentication & role verification
+│   ├── 📁 models                # Database models
+│   ├── 📁 routes                # REST API endpoints
+│   ├── 📁 services              # Core business services
+│   ├── 📁 ai                    # AI Assistant & Tool Calling
+│   ├── 📁 utils                 # Utility/helper functions
+│   ├── server.js                # Express server entry point
+│   └── package.json
+│
+├── 📁 frontend
+│   ├── 📁 css
+│   ├── 📁 js
+│   ├── 📁 assets
+│   ├── 📁 images
+│   ├── index.html
+│   └── dashboard.html
+│
+├── 📁 database
+│   ├── schema.sql
+│   ├── seed_data.sql
+│   └── db-init.js
+│
+├── 📁 docs
+│   ├── API_DOCS.md
+│   ├── ARCHITECTURE.md
+│   ├── DATABASE_SETUP.md
+│   └── DEPLOYMENT.md
+│
+├── .env.example
+├── package.json
+└── README.md
+```
+
+---
+
+# ⚙️ System Requirements
+
+Before running the application, ensure the following software is installed:
+
+| Software | Version |
+|----------|----------|
+| Node.js | 18.x or above |
+| npm | Latest |
+| MySQL | 8.x |
+| Git | Latest |
+| VS Code | Recommended |
+
+---
+
+# 🚀 Installation Guide
+
+## 1️⃣ Clone the Repository
+
+```bash
+git clone https://github.com/Bharath-vsb/Online-Medication-Prescription-Tracker.git
+```
+
+Move into the project directory:
+
+```bash
+cd Online-Medication-Prescription-Tracker
+```
+
+---
+
+## 2️⃣ Install Dependencies
+
+Backend:
+
+```bash
+cd backend
+npm install
+```
+
+Frontend (if applicable):
+
+```bash
+cd frontend
+npm install
+```
+
+---
+
+## 3️⃣ Configure Environment Variables
+
+Create a `.env` file inside the backend directory.
+
+Example:
+
+```env
+PORT=5000
+
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=medication_tracker
+DB_USER=root
+DB_PASSWORD=your_password
+
+JWT_SECRET=your_jwt_secret
+
+GROQ_API_KEY=your_groq_api_key
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+> **Important:** Never commit your `.env` file or API keys to GitHub.
+
+---
+
+## 4️⃣ Database Setup
+
+Create the database:
+
+```sql
+CREATE DATABASE medication_tracker;
+```
+
+Run the schema:
+
+```bash
+mysql -u root -p medication_tracker < database/schema.sql
+```
+
+(Optional) Load sample data:
+
+```bash
+mysql -u root -p medication_tracker < database/seed_data.sql
+```
+
+---
+
+## 5️⃣ Start the Backend Server
+
+```bash
+npm start
+```
+
+For development:
+
+```bash
+npm run dev
+```
+
+The server will run at:
+
+```
+http://localhost:5000
+```
+
+---
+
+## 6️⃣ Launch the Frontend
+
+Open the frontend in your browser or start the frontend development server if configured.
+
+```
+http://localhost:3000
+```
+
+---
+
+# 📡 API Overview
+
+The backend exposes RESTful APIs for all system operations.
+
+## Authentication
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register a new user |
+| POST | `/api/auth/login` | Authenticate user |
+| POST | `/api/auth/logout` | Logout current user |
+
+---
+
+## Doctor APIs
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/doctor/dashboard` | Doctor dashboard |
+| POST | `/api/prescriptions` | Create prescription |
+| GET | `/api/prescriptions` | View prescriptions |
+| GET | `/api/patients` | Search patients |
+
+---
+
+## Patient APIs
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/patient/dashboard` | Dashboard |
+| GET | `/api/prescriptions/active` | Active prescriptions |
+| GET | `/api/reminders` | Medication reminders |
+| PUT | `/api/profile` | Update profile |
+
+---
+
+## Pharmacist APIs
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/inventory` | View medicines |
+| POST | `/api/inventory` | Add medicine |
+| PUT | `/api/inventory/:id` | Update stock |
+| DELETE | `/api/inventory/:id` | Delete medicine |
+| POST | `/api/dispense` | Dispense prescription |
+
+---
+
+## Administrator APIs
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/admin/dashboard` | Dashboard |
+| GET | `/api/users` | Manage users |
+| PUT | `/api/users/:id/status` | Approve or reject users |
+| GET | `/api/analytics` | System analytics |
+| GET | `/api/audit-logs` | Audit trail |
+
+---
+
+# 🔐 Authentication Flow
+
+```
+User Login
+     │
+     ▼
+Email & Password
+     │
+     ▼
+Password Verification (bcrypt)
+     │
+     ▼
+JWT Token Generated
+     │
+     ▼
+Token Sent to Client
+     │
+     ▼
+Protected API Access
+     │
+     ▼
+Role Authorization
+```
+
+---
+
+# 🔒 Security Features
+
+- JWT-based authentication
+- Password hashing with bcrypt
+- Role-Based Access Control (RBAC)
+- Secure API endpoints
+- Input validation
+- Error handling
+- Audit logging
+- Environment-based configuration
+- Protected routes
+- API authorization middleware
+
+---
+
+# 📊 Database Overview
+
+The system stores information for:
+
+- Users
+- Patients
+- Doctors
+- Pharmacists
+- Administrators
+- Prescriptions
+- Medicines
+- Inventory
+- Medication Reminders
+- AI Conversations
+- Audit Logs
+- Notifications
+
+---
+
+# 🧩 Core Functional Modules
+
+### Authentication Module
+- Secure registration
+- Login
+- JWT authentication
+- Password encryption
+
+### Prescription Module
+- Create prescriptions
+- View prescription history
+- Prescription validation
+- PDF generation
+
+### Inventory Module
+- Medicine CRUD
+- Stock updates
+- Low stock alerts
+- Dispensing workflow
+
+### Reminder Module
+- Medication scheduling
+- Daily reminders
+- Completion tracking
+
+### Analytics Module
+- User statistics
+- Prescription analytics
+- Inventory insights
+- Dashboard metrics
+
+### AI Module
+- Healthcare assistant
+- Tool calling
+- Intelligent query processing
+- Analytics assistance
+
+---
+
+# 🖼️ Application Screenshots
+
+> Add screenshots of your application in the `docs/screenshots` folder.
+
+Suggested images:
+
+```
+docs/
+└── screenshots/
+    ├── login.png
+    ├── admin-dashboard.png
+    ├── doctor-dashboard.png
+    ├── patient-dashboard.png
+    ├── pharmacist-dashboard.png
+    ├── prescription-page.png
+    ├── inventory.png
+    ├── ai-assistant.png
+    └── analytics.png
+```
+
+Then reference them like this:
+
+```markdown
+## Login Page
+
+![Login](docs/screenshots/login.png)
+
+## Admin Dashboard
+
+![Admin](docs/screenshots/admin-dashboard.png)
+```
+
+---
+
+# 🧪 Testing
+
+To verify the application:
+
+1. Register users for each role.
+2. Approve doctors and pharmacists through the admin panel.
+3. Log in with each role.
+4. Create and manage prescriptions.
+5. Dispense medicines and observe inventory updates.
+6. Configure medication reminders.
+7. Interact with the AI assistant.
+8. Review analytics and audit logs.
+
+---
+
