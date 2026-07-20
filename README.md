@@ -715,3 +715,367 @@ To verify the application:
 
 ---
 
+---
+
+# 🤖 AI Assistant Architecture
+
+The application integrates an intelligent AI Assistant that enhances the healthcare experience for every user role.
+
+The AI assistant is capable of:
+
+- 💬 Answering healthcare-related questions
+- 📋 Retrieving prescription information
+- 📊 Generating system analytics
+- 💊 Providing medicine information
+- 📦 Checking inventory status
+- 👥 Assisting administrators with management tasks
+- 🔍 Intelligent database querying through tool calling
+
+---
+
+## AI Request Flow
+
+```text
+                 User
+                   │
+                   ▼
+        Natural Language Query
+                   │
+                   ▼
+           AI Assistant Service
+                   │
+          Intent Recognition
+                   │
+         ┌─────────┴─────────┐
+         │                   │
+         ▼                   ▼
+ General Response      Tool Calling
+         │                   │
+         ▼                   ▼
+                     Backend Services
+                           │
+         ┌─────────────────┼──────────────────┐
+         ▼                 ▼                  ▼
+   Prescription      Inventory          Analytics
+       Service          Service            Service
+         │                 │                  │
+         └─────────────────┼──────────────────┘
+                           ▼
+                      MySQL Database
+                           │
+                           ▼
+                     AI Response
+                           │
+                           ▼
+                         User
+```
+
+---
+
+# 🏗 Complete System Architecture
+
+```text
+                        Internet
+                            │
+                            ▼
+                    Web Browser Client
+                            │
+        ┌───────────────────┼────────────────────┐
+        ▼                   ▼                    ▼
+     Patient             Doctor            Pharmacist
+                                            │
+                                            ▼
+                                          Admin
+                            │
+                            ▼
+                     Frontend Application
+                            │
+                            ▼
+                    Express.js REST Server
+                            │
+         ┌──────────────────┼──────────────────┐
+         ▼                  ▼                  ▼
+ Authentication       Business Logic      AI Services
+         │                  │                  │
+         ▼                  ▼                  ▼
+ JWT Middleware      Controllers        Groq / Gemini
+         │                  │                  │
+         └──────────────────┼──────────────────┘
+                            ▼
+                    MySQL Relational Database
+```
+
+---
+
+# 📈 Application Workflow
+
+```text
+User Registration
+        │
+        ▼
+Admin Approval
+        │
+        ▼
+User Login
+        │
+        ▼
+JWT Authentication
+        │
+        ▼
+Dashboard
+        │
+        ├───────────────┬──────────────────┬──────────────┐
+        ▼               ▼                  ▼              ▼
+   Doctor          Patient          Pharmacist        Admin
+        │               │                  │              │
+        └───────────────┴──────────────────┴──────────────┘
+                        │
+                        ▼
+                  Database Operations
+                        │
+                        ▼
+                   AI Assistance
+                        │
+                        ▼
+                  Real-time Response
+```
+
+---
+
+# 💊 Prescription Workflow
+
+```text
+Doctor Login
+      │
+      ▼
+Select Patient
+      │
+      ▼
+Choose Medicines
+      │
+      ▼
+Create Prescription
+      │
+      ▼
+Store in Database
+      │
+      ▼
+Patient Notification
+      │
+      ▼
+Pharmacist Verification
+      │
+      ▼
+Medicine Dispensed
+      │
+      ▼
+Inventory Updated
+```
+
+---
+
+# 📦 Inventory Management Workflow
+
+```text
+Medicine Added
+       │
+       ▼
+Inventory Database
+       │
+       ▼
+Stock Monitoring
+       │
+       ▼
+Low Stock Detection
+       │
+       ▼
+Alert Pharmacist
+       │
+       ▼
+Inventory Refilled
+```
+
+---
+
+# 🔐 Authentication Architecture
+
+```text
+Login Request
+      │
+      ▼
+Validate Credentials
+      │
+      ▼
+bcrypt Password Check
+      │
+      ▼
+JWT Token Creation
+      │
+      ▼
+Client Storage
+      │
+      ▼
+Protected API Access
+      │
+      ▼
+Role Authorization
+```
+
+---
+
+# ☁️ Deployment Architecture
+
+```text
+                 GitHub Repository
+                         │
+                         ▼
+                 CI/CD Deployment
+                         │
+        ┌────────────────┴────────────────┐
+        ▼                                 ▼
+Frontend Hosting                    Backend Hosting
+(Vercel/Netlify)                    (Railway/Render)
+        │                                 │
+        └───────────────┬─────────────────┘
+                        ▼
+                  MySQL Database
+                        │
+                        ▼
+               Groq / Gemini AI APIs
+```
+
+---
+
+# 🚀 Deployment Guide
+
+## Backend
+
+1. Configure environment variables.
+2. Install dependencies.
+3. Connect MySQL database.
+4. Deploy on Railway or Render.
+5. Verify API endpoints.
+
+---
+
+## Frontend
+
+1. Build the frontend.
+2. Configure API base URL.
+3. Deploy using Vercel or Netlify.
+4. Verify communication with the backend.
+
+---
+
+# 🌍 Future Enhancements
+
+- 📱 Mobile Application (Android & iOS)
+- ⌚ Smartwatch Medication Notifications
+- 📅 Doctor Appointment Scheduling
+- 📞 Video Consultation
+- 💳 Online Pharmacy Payments
+- 📈 Advanced Health Analytics
+- 🩺 Electronic Health Records (EHR)
+- 🌐 Multi-language Support
+- 🔔 Push Notifications
+- ☁️ Cloud Storage Integration
+- 🧠 AI-based Medicine Recommendation
+- 📊 Predictive Healthcare Analytics
+- 🏥 Hospital Integration
+- 📡 IoT-enabled Smart Pill Box
+- 📷 OCR Prescription Scanner
+- 🔐 Two-Factor Authentication (2FA)
+
+---
+
+# 📊 Project Statistics
+
+| Category | Details |
+|----------|---------|
+| Architecture | Full Stack |
+| Backend | Node.js + Express.js |
+| Frontend | HTML, CSS, JavaScript |
+| Database | MySQL |
+| Authentication | JWT |
+| AI Integration | Groq + Gemini |
+| Roles | 4 |
+| REST APIs | ✔ |
+| Role-Based Access | ✔ |
+| AI Tool Calling | ✔ |
+| Responsive UI | ✔ |
+
+---
+
+# 🤝 Contributing
+
+Contributions are welcome!
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Commit your changes.
+4. Push the branch.
+5. Open a Pull Request.
+
+---
+
+# 👨‍💻 Development Team
+
+| Role | Responsibility |
+|------|----------------|
+| Developers | Full Stack Development |
+| AI Integration | Conversational AI & Tool Calling |
+| Database Design | MySQL Schema |
+| Backend Development | REST APIs |
+| Frontend Development | Responsive User Interface |
+
+---
+
+# 📝 License
+
+This project is licensed under the **MIT License**.
+
+You are free to use, modify, and distribute this project under the terms of the MIT License.
+
+---
+
+# 🙏 Acknowledgements
+
+Special thanks to the open-source community and the technologies that made this project possible:
+
+- Node.js
+- Express.js
+- MySQL
+- JWT
+- Bootstrap
+- Groq API
+- Google Gemini
+- GitHub
+- Railway
+- Vercel
+
+---
+
+# ⭐ Support
+
+If you found this project helpful:
+
+- ⭐ Star this repository
+- 🍴 Fork the project
+- 🐛 Report issues
+- 💡 Suggest improvements
+
+Your support helps improve the project and encourages future development.
+
+---
+
+<div align="center">
+
+# 💊 Online Medication & Prescription Tracker
+
+### Empowering Healthcare Through Technology
+
+**Developed with ❤️ using Node.js, Express.js, MySQL, and AI**
+
+⭐ **If you like this project, don't forget to star the repository!** ⭐
+
+</div>
