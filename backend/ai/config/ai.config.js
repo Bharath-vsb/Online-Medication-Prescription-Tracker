@@ -21,7 +21,7 @@ const config = {
      *  llama-3.1-8b-instant     — lighter, faster, lower context
      *  mixtral-8x7b-32768       — Mixtral MoE model
      */
-    modelName: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    modelName: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
 
     // -------------------------------------------------------------------------
     // Generation parameters
