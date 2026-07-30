@@ -776,6 +776,11 @@ async function generateReminders(connection, prescription) {
       const reminderDateTime = new Date(currentDate);
       reminderDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
+      // Railway servers run in UTC. To ensure the reminders trigger at the correct 
+      // local time for the user (IST, UTC+05:30), we subtract 330 minutes from the UTC time.
+      // This ensures 08:00 AM IST is saved as 02:30 AM UTC, which correctly triggers at 8 AM local time.
+      reminderDateTime.setMinutes(reminderDateTime.getMinutes() - 330);
+
       await connection.query(
         'INSERT INTO reminders (prescription_id, patient_id, reminder_time, status) VALUES (?, ?, ?, ?)',
         [id, patient_id, reminderDateTime, 'pending']
