@@ -759,12 +759,11 @@ async function generateReminders(connection, prescription) {
 
   // Natural medication times based on frequency
   const reminderTimes = {
-    'once-per-day':        ['08:00'],
-    'twice-per-day':       ['08:00', '20:00'],
-    'three-times-per-day': ['08:00', '14:00', '20:00'],
-    'four-times-per-day':  ['08:00', '12:00', '16:00', '20:00'],
-    'every-6-hours':       ['06:00', '12:00', '18:00', '00:00'],
-    'every-8-hours':       ['06:00', '14:00', '22:00']
+    'once-per-day-morning': ['08:00'],
+    'once-per-day-night':   ['22:00'],
+    'twice-per-day':        ['08:00', '20:00'],
+    'three-times-per-day':  ['06:00', '14:00', '22:00'],
+    'four-times-per-day':   ['06:00', '12:00', '18:00', '00:00']
   }[frequency] || ['08:00'];
 
   const start = new Date(start_date);

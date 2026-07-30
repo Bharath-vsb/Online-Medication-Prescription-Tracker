@@ -426,12 +426,11 @@ async function openCreatePrescriptionModal() {
                             <div class="form-group">
                                 <label>Frequency</label>
                                 <select class="frequency" required>
-                                    <option value="once-per-day">Once per day</option>
+                                    <option value="once-per-day-morning">Once per day (Morning)</option>
+                                    <option value="once-per-day-night">Once per day (Night)</option>
                                     <option value="twice-per-day">Twice per day</option>
                                     <option value="three-times-per-day">Three times per day</option>
                                     <option value="four-times-per-day">Four times per day</option>
-                                    <option value="every-6-hours">Every 6 hours</option>
-                                    <option value="every-8-hours">Every 8 hours</option>
                                 </select>
                             </div>
                         </div>
