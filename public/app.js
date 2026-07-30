@@ -1355,13 +1355,18 @@ window.togglePharmacistNotifications = async function() {
 window.pharmRestockModal = function(inventoryId, medicineName) {
     const modal = document.createElement('div');
     modal.className = 'modal active';
+    // Compute tomorrow's date as the minimum selectable expiry date
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const minDate = tomorrow.toISOString().split('T')[0];
+
     modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🔄 Restock: ${medicineName}</h3>
-                <button class="close-modal">×</button>
+                <h3>\uD83D\uDD04 Restock: ${medicineName}</h3>
+                <button class="close-modal">\u00d7</button>
             </div>
-            <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1rem;">Enter new batch details to replace the expired stock.</p>
+            <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1.25rem;">Enter new batch details to replace the expired stock.</p>
             <form id="restockForm">
                 <div class="form-group">
                     <label>New Batch Number</label>
@@ -1369,15 +1374,15 @@ window.pharmRestockModal = function(inventoryId, medicineName) {
                 </div>
                 <div class="form-group">
                     <label>New Expiry Date</label>
-                    <input type="date" id="restockExpiry" required>
+                    <input type="date" id="restockExpiry" required min="${minDate}">
                 </div>
                 <div class="form-group">
                     <label>Stock Quantity</label>
                     <input type="number" id="restockQty" min="1" required placeholder="Enter quantity">
                 </div>
-                <div class="btn-group">
-                    <button type="button" class="btn btn-secondary close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">✅ Restock</button>
+                <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+                    <button type="button" class="btn btn-secondary close-modal" style="flex:1; padding:0.75rem;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="flex:2; padding:0.75rem;">\u2705 Restock</button>
                 </div>
             </form>
         </div>
@@ -1397,7 +1402,7 @@ window.pharmRestockModal = function(inventoryId, medicineName) {
             if (panel) panel.style.display = 'none';
             loadPharmacistInventory();
             loadPharmacistNotificationCount();
-            alert('✅ Medicine restocked successfully!');
+            alert('\u2705 Medicine restocked successfully!');
         } catch(err) {
             alert('Error restocking: ' + err.message);
         }
@@ -1839,7 +1844,13 @@ async function loadPharmacistAnalytics() {
                 <div class="stat-card orange">
                     <div class="stat-label">Low Stock Items</div>
                     <div class="stat-value">${analytics.lowStockCount}</div>
-                    <div class="stat-description">Need restock</div>
+                    <div class="stat-description">Need restock (non-expired)</div>
+                </div>
+
+                <div class="stat-card" style="border-top: 3px solid var(--accent-red);">
+                    <div class="stat-label" style="color: var(--accent-red);">Expired Items</div>
+                    <div class="stat-value" style="color: var(--accent-red);">${analytics.expiredCount}</div>
+                    <div class="stat-description">Must be removed or restocked</div>
                 </div>
                 
                 <div class="stat-card green">

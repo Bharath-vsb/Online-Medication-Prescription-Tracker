@@ -791,7 +791,8 @@ app.get('/api/pharmacist/analytics', authenticate, authorize('pharmacist'), asyn
     const [stats] = await db.query(`
       SELECT 
         COUNT(DISTINCT medicine_id) as total_medicines,
-        SUM(CASE WHEN stock_quantity <= 100 THEN 1 ELSE 0 END) as low_stock_count
+        SUM(CASE WHEN stock_quantity <= 100 AND expiry_date >= CURDATE() THEN 1 ELSE 0 END) as low_stock_count,
+        SUM(CASE WHEN expiry_date < CURDATE() THEN 1 ELSE 0 END) as expired_count
       FROM inventory
     `);
 
@@ -804,6 +805,7 @@ app.get('/api/pharmacist/analytics', authenticate, authorize('pharmacist'), asyn
     res.json({
       totalMedicines: stats[0].total_medicines,
       lowStockCount: stats[0].low_stock_count,
+      expiredCount: stats[0].expired_count,
       monthlySales: sales[0].monthly_sales
     });
   } catch (error) {
