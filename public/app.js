@@ -807,7 +807,7 @@ async function loadPatientPrescriptionsByStatus(status) {
 
 async function loadPatientReminders() {
     try {
-        // Request notification permission if not already granted
+        // Request notification permission
         if ('Notification' in window && Notification.permission === 'default') {
             await Notification.requestPermission();
         }
@@ -820,7 +820,6 @@ async function loadPatientReminders() {
                 <h1>Medication Reminders</h1>
                 <p>Manage your medication schedule</p>
             </div>
-            
             <div id="remindersList"></div>
         `;
 
@@ -836,153 +835,226 @@ async function loadPatientReminders() {
             return;
         }
 
-        // Group by Date (Today/Tomorrow) and Prescription
-        const groupedByDate = { 'Today': {}, 'Tomorrow': {} };
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const now = new Date();
+        const today = new Date(); today.setHours(0,0,0,0);
 
+        // Group by prescription, then collect all of today's + tomorrow's
+        const grouped = {}; // keyed by prescriptionId
         reminders.forEach(r => {
-            const rDate = new Date(r.reminderTime);
-            rDate.setHours(0, 0, 0, 0);
-
-            // simple check for today vs tomorrow based on date timestamp
-            const isToday = rDate.getTime() === today.getTime();
-            const groupName = isToday ? 'Today' : 'Tomorrow';
-
-            if (groupedByDate[groupName]) {
-                if (!groupedByDate[groupName][r.prescriptionId]) {
-                    groupedByDate[groupName][r.prescriptionId] = {
-                        prescription: r.prescription,
-                        reminders: []
-                    };
-                }
-                groupedByDate[groupName][r.prescriptionId].reminders.push(r);
+            const pid = r.prescriptionId;
+            if (!grouped[pid]) {
+                grouped[pid] = { prescription: r.prescription, today: [], tomorrow: [] };
+            }
+            const rDay = new Date(r.reminderTime); rDay.setHours(0,0,0,0);
+            if (rDay.getTime() === today.getTime()) {
+                grouped[pid].today.push(r);
+            } else {
+                grouped[pid].tomorrow.push(r);
             }
         });
 
-        // Helper function to get status badge
-        const getStatusBadge = (reminderStatus) => {
-            const badges = {
-                'due_now': '<span class="badge" style="background: #ef4444; animation: pulse 2s infinite;">🔔 DUE NOW</span>',
-                'grace_period': '<span class="badge" style="background: #f59e0b;">⏰ GRACE PERIOD</span>',
-                'upcoming': '<span class="badge" style="background: #3b82f6;">📅 Upcoming</span>'
-            };
-            return badges[reminderStatus] || '<span class="badge badge-secondary">Pending</span>';
+        const getStatusBadge = (s) => ({
+            'due_now':     `<span class="badge" style="background:#ef4444;animation:pulse 1.5s infinite;">🔔 DUE NOW</span>`,
+            'grace_period':`<span class="badge" style="background:#f59e0b;">⏰ Grace Period</span>`,
+            'upcoming':    `<span class="badge" style="background:#3b82f6;">📅 Upcoming</span>`
+        }[s] || `<span class="badge badge-secondary">Pending</span>`);
+
+        const fmtTime = (t) => new Date(t).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const fmtCountdown = (mins) => {
+            if (!mins) return '-';
+            const m = Math.floor(mins), s = Math.floor((mins - m) * 60);
+            return `${m}m ${s}s left`;
         };
 
-        // Helper function to format countdown
-        const formatCountdown = (minutes) => {
-            if (!minutes) return '';
-            const mins = Math.floor(minutes);
-            const secs = Math.floor((minutes - mins) * 60);
-            return `${mins}m ${secs}s remaining`;
+        // Find next upcoming reminder per prescription
+        const getNextReminder = (list) => {
+            const upcoming = list.filter(r => new Date(r.reminderTime) > now || r.reminderStatus === 'due_now' || r.reminderStatus === 'grace_period');
+            if (upcoming.length) return upcoming[0];
+            return list[list.length - 1]; // fallback last
         };
+
+        const renderReminderRow = (r, showEdit = true) => `
+            <tr class="reminder-row" data-reminder-id="${r.id}" data-status="${r.reminderStatus}">
+                <td>
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <strong>${fmtTime(r.reminderTime)}</strong>
+                        ${showEdit ? `<button class="btn btn-secondary" style="padding:0.2rem 0.45rem;font-size:0.7rem;" 
+                            onclick="editReminderTime(${r.id},'${r.reminderTime}')" title="Edit time">✏️</button>` : ''}
+                    </div>
+                </td>
+                <td>${getStatusBadge(r.reminderStatus)}</td>
+                <td><span class="countdown-timer" data-minutes="${r.minutesUntilMissed || 0}">
+                    ${r.reminderStatus === 'grace_period' ? fmtCountdown(r.minutesUntilMissed) : '-'}
+                </span></td>
+                <td>
+                    <button class="btn btn-success" style="padding:0.4rem 0.8rem;font-size:0.8rem;" onclick="confirmDose(${r.id},'taken')">✓ Taken</button>
+                    <button class="btn btn-secondary" style="padding:0.4rem 0.8rem;font-size:0.8rem;" onclick="confirmDose(${r.id},'missed')">✗ Skip</button>
+                </td>
+            </tr>`;
+
+        const renderExpandedTable = (list, prescriptionId) => `
+            <div class="table-container" id="expanded-${prescriptionId}">
+                <table>
+                    <thead><tr><th>Time</th><th>Status</th><th>Countdown</th><th>Actions</th></tr></thead>
+                    <tbody>${list.map(r => renderReminderRow(r)).join('')}</tbody>
+                </table>
+            </div>`;
 
         let html = '';
 
-        // Render sections
-        ['Today', 'Tomorrow'].forEach(day => {
-            const dayGroups = groupedByDate[day];
-            const hasReminders = Object.keys(dayGroups).length > 0;
-
-            if (hasReminders) {
-                html += `
-                    <h2 style="margin: 2rem 0 1rem; color: #3b82f6; display: flex; align-items: center; gap: 0.5rem;">
-                        ${day === 'Today' ? '📅' : '🌅'} ${day}'s Schedule
-                    </h2>
-                `;
-
-                html += Object.values(dayGroups).map(group => `
-                    <div class="card">
-                        <div class="card-header">
+        // --- TODAY'S SECTION ---
+        const todayGroups = Object.values(grouped).filter(g => g.today.length > 0);
+        if (todayGroups.length > 0) {
+            html += `<h2 style="margin:2rem 0 1rem;color:#3b82f6;display:flex;align-items:center;gap:0.5rem;">📅 Today's Schedule</h2>`;
+            html += todayGroups.map(group => {
+                const next = getNextReminder(group.today);
+                const pid = group.prescription.id;
+                const isDue = next.reminderStatus === 'due_now' || next.reminderStatus === 'grace_period';
+                return `
+                <div class="card" style="border-left: 3px solid ${isDue ? '#ef4444' : '#3b82f6'}; margin-bottom:1rem;">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">
+                        <div>
                             <h3>💊 ${group.prescription.medicineName}</h3>
-                            <p style="margin: 0.5rem 0 0 0; color: #9ca3af; font-size: 0.875rem;">
-                                Frequency: ${group.prescription.frequency.replace(/-/g, ' ')}
+                            <p style="color:#9ca3af;font-size:0.85rem;margin-top:0.25rem;">
+                                ${group.prescription.frequency.replace(/-/g,' ')} &nbsp;·&nbsp; 
+                                ${group.today.length} dose${group.today.length > 1 ? 's' : ''} today
                             </p>
                         </div>
-                        
+                        <button onclick="toggleSchedule('${pid}', this)" 
+                            style="background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-secondary);padding:0.4rem 0.85rem;border-radius:8px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">
+                            📋 View Full Schedule
+                        </button>
+                    </div>
+
+                    <!-- NEXT REMINDER (default view) -->
+                    <div id="next-${pid}">
+                        <p style="color:var(--text-muted);font-size:0.8rem;padding:0 0 0.5rem 0;">Next reminder:</p>
                         <div class="table-container">
                             <table>
-                                <thead>
-                                    <tr>
-                                        <th>Time</th>
-                                        <th>Status</th>
-                                        <th>Countdown</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${group.reminders.map(r => {
-                    const time = new Date(r.reminderTime);
-                    const timeStr = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-                    return `
-                                        <tr class="reminder-row" data-reminder-id="${r.id}" data-status="${r.reminderStatus}">
-                                            <td>
-                                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                    <strong>${timeStr}</strong>
-                                                    ${r.reminderStatus === 'upcoming' || r.reminderStatus === 'due_now' || r.reminderStatus === 'grace_period' ? `
-                                                        <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" 
-                                                            onclick="editReminderTime(${r.id}, '${r.reminderTime}')" title="Edit Time">
-                                                            ✏️
-                                                        </button>
-                                                    ` : ''}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                ${getStatusBadge(r.reminderStatus)}
-                                            </td>
-                                            <td>
-                                                <span class="countdown-timer" data-minutes="${r.minutesUntilMissed || 0}">
-                                                    ${r.reminderStatus === 'grace_period' ? formatCountdown(r.minutesUntilMissed) : '-'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <button class="btn btn-success" style="padding: 0.5rem 1rem; font-size: 0.875rem;" 
-                                                    onclick="confirmDose(${r.id}, 'taken')">
-                                                    ✓ Taken
-                                                </button>
-                                                <button class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;" 
-                                                    onclick="confirmDose(${r.id}, 'missed')">
-                                                    ✗ Skip
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    `}).join('')}
-                                </tbody>
+                                <thead><tr><th>Time</th><th>Status</th><th>Countdown</th><th>Actions</th></tr></thead>
+                                <tbody>${renderReminderRow(next)}</tbody>
                             </table>
                         </div>
                     </div>
-                `).join('');
-            }
-        });
+
+                    <!-- FULL SCHEDULE (hidden by default, shown on toggle) -->
+                    <div id="full-${pid}" style="display:none;">
+                        <p style="color:var(--text-muted);font-size:0.8rem;padding:0 0 0.5rem 0;">All reminders today — click ✏️ to edit a time:</p>
+                        ${renderExpandedTable(group.today, pid)}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // --- TOMORROW'S SECTION ---
+        const tomorrowGroups = Object.values(grouped).filter(g => g.tomorrow.length > 0);
+        if (tomorrowGroups.length > 0) {
+            html += `<h2 style="margin:2rem 0 1rem;color:#6b7280;display:flex;align-items:center;gap:0.5rem;">🌅 Tomorrow's Schedule</h2>`;
+            html += tomorrowGroups.map(group => {
+                const next = getNextReminder(group.tomorrow);
+                const pid = 'tmr_' + group.prescription.id;
+                return `
+                <div class="card" style="opacity:0.8;margin-bottom:1rem;">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">
+                        <div>
+                            <h3>💊 ${group.prescription.medicineName}</h3>
+                            <p style="color:#9ca3af;font-size:0.85rem;margin-top:0.25rem;">
+                                ${group.prescription.frequency.replace(/-/g,' ')} &nbsp;·&nbsp; 
+                                ${group.tomorrow.length} dose${group.tomorrow.length > 1 ? 's' : ''} tomorrow
+                            </p>
+                        </div>
+                        <button onclick="toggleSchedule('${pid}', this)"
+                            style="background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-secondary);padding:0.4rem 0.85rem;border-radius:8px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">
+                            📋 View Full Schedule
+                        </button>
+                    </div>
+
+                    <div id="next-${pid}">
+                        <p style="color:var(--text-muted);font-size:0.8rem;padding:0 0 0.5rem 0;">First reminder tomorrow:</p>
+                        <div class="table-container">
+                            <table>
+                                <thead><tr><th>Time</th><th>Status</th><th>Countdown</th><th>Actions</th></tr></thead>
+                                <tbody>${renderReminderRow(next, false)}</tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="full-${pid}" style="display:none;">
+                        <p style="color:var(--text-muted);font-size:0.8rem;padding:0 0 0.5rem 0;">All reminders tomorrow:</p>
+                        ${renderExpandedTable(group.tomorrow, pid)}
+                    </div>
+                </div>`;
+            }).join('');
+        }
 
         listDiv.innerHTML = html || `
             <div class="empty-state">
                 <h3>No active reminders for today or tomorrow</h3>
-                <p>Reminders will appear when you have active prescriptions that have been purchased</p>
-            </div>
-        `;
+                <p>Reminders appear after you purchase an active prescription</p>
+            </div>`;
 
-        // Show browser notifications for "due now" reminders
-        if ('Notification' in window && Notification.permission === 'granted') {
-            reminders.filter(r => r.reminderStatus === 'due_now').forEach(r => {
-                new Notification('💊 Medication Reminder', {
-                    body: `Time to take ${r.prescription.medicineName}`,
-                    icon: '/favicon.ico',
-                    tag: `reminder-${r.id}`,
-                    requireInteraction: true
+        // Alarm + notification for DUE NOW reminders
+        const dueNow = reminders.filter(r => r.reminderStatus === 'due_now');
+        if (dueNow.length > 0) {
+            playAlarmSound();
+            if ('Notification' in window && Notification.permission === 'granted') {
+                dueNow.forEach(r => {
+                    new Notification('💊 Medication Due Now!', {
+                        body: `Time to take ${r.prescription.medicineName}`,
+                        icon: '/favicon.ico',
+                        tag: `reminder-${r.id}`,
+                        requireInteraction: true
+                    });
                 });
-            });
+            }
         }
 
-        // Start countdown timers and auto-refresh
         startReminderUpdates();
 
     } catch (error) {
         console.error('Error loading reminders:', error);
     }
 }
+
+// Toggle full schedule expand/collapse
+window.toggleSchedule = function(pid, btn) {
+    const nextDiv = document.getElementById(`next-${pid}`);
+    const fullDiv = document.getElementById(`full-${pid}`);
+    const isExpanded = fullDiv.style.display !== 'none';
+    if (isExpanded) {
+        fullDiv.style.display = 'none';
+        nextDiv.style.display = '';
+        btn.textContent = '📋 View Full Schedule';
+    } else {
+        fullDiv.style.display = '';
+        nextDiv.style.display = 'none';
+        btn.textContent = '🔼 Hide Schedule';
+    }
+};
+
+// Play a soft alarm beep using Web Audio API
+function playAlarmSound() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const beepCount = 3;
+        for (let i = 0; i < beepCount; i++) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.6);
+            gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + i * 0.6 + 0.05);
+            gain.gain.linearRampToValueAtTime(0, ctx.currentTime + i * 0.6 + 0.45);
+            osc.start(ctx.currentTime + i * 0.6);
+            osc.stop(ctx.currentTime + i * 0.6 + 0.5);
+        }
+    } catch(e) { /* audio not available */ }
+}
+
 
 // Auto-refresh reminders and update countdowns
 let reminderUpdateInterval;

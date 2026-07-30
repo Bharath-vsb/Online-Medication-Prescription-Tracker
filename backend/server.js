@@ -757,14 +757,15 @@ app.get('/api/pharmacist/notifications', authenticate, authorize('pharmacist'), 
 async function generateReminders(connection, prescription) {
   const { id, patient_id, start_date, end_date, frequency } = prescription;
 
+  // Natural medication times based on frequency
   const reminderTimes = {
-    'once-per-day': ['09:00'],
-    'twice-per-day': ['09:00', '21:00'],
+    'once-per-day':        ['08:00'],
+    'twice-per-day':       ['08:00', '20:00'],
     'three-times-per-day': ['08:00', '14:00', '20:00'],
-    'four-times-per-day': ['08:00', '12:00', '16:00', '20:00'],
-    'every-6-hours': ['06:00', '12:00', '18:00', '00:00'],
-    'every-8-hours': ['08:00', '16:00', '00:00']
-  }[frequency] || ['09:00'];
+    'four-times-per-day':  ['08:00', '12:00', '16:00', '20:00'],
+    'every-6-hours':       ['06:00', '12:00', '18:00', '00:00'],
+    'every-8-hours':       ['06:00', '14:00', '22:00']
+  }[frequency] || ['08:00'];
 
   const start = new Date(start_date);
   const end = new Date(end_date);
@@ -784,6 +785,7 @@ async function generateReminders(connection, prescription) {
     currentDate.setDate(currentDate.getDate() + 1);
   }
 }
+
 
 // Pharmacist analytics
 app.get('/api/pharmacist/analytics', authenticate, authorize('pharmacist'), async (req, res) => {
