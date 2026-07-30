@@ -441,9 +441,9 @@ async function openCreatePrescriptionModal() {
                         ➕ Add Another Medicine
                     </button>
                     
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-secondary close-modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Create Prescription</button>
+                    <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+                        <button type="button" class="btn btn-secondary close-modal" style="flex:1; padding:0.75rem;">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="flex:2; padding:0.75rem;">Create Prescription</button>
                     </div>
                 </form>
             </div>
@@ -1542,9 +1542,9 @@ window.openAddInventoryModal = async function () {
                     <input type="number" id="stockQuantity" min="1" required>
                 </div>
                 
-                <div class="btn-group">
-                    <button type="button" class="btn btn-secondary close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add Stock</button>
+                <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+                    <button type="button" class="btn btn-secondary close-modal" style="flex:1; padding:0.75rem;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="flex:2; padding:0.75rem;">Add Stock</button>
                 </div>
             </form>
         </div>
@@ -1639,9 +1639,9 @@ window.editInventory = async function (id) {
                         <input type="number" id="editStockQuantity" value="${item.stock_quantity}" min="0" required>
                     </div>
                     
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-secondary close-modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Update Stock</button>
+                    <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+                        <button type="button" class="btn btn-secondary close-modal" style="flex:1; padding:0.75rem;">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="flex:2; padding:0.75rem;">Update Stock</button>
                     </div>
                 </form>
             </div>
