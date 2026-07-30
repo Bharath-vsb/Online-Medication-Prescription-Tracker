@@ -640,15 +640,26 @@ app.post('/api/pharmacist/sell/:id', authenticate, authorize('pharmacist'), asyn
       return res.status(400).json({ error: 'Already sold' });
     }
 
-    // Find inventory
+    // Find inventory - must have sufficient stock AND not be expired
     const [inventory] = await connection.query(
-      'SELECT * FROM inventory WHERE medicine_id = ? AND stock_quantity >= ? LIMIT 1',
+      'SELECT * FROM inventory WHERE medicine_id = ? AND stock_quantity >= ? AND expiry_date >= CURDATE() LIMIT 1',
       [prescription.medicine_id, prescription.total_quantity]
     );
 
     if (inventory.length === 0) {
+      // Check why - is it not in inventory, or expired, or insufficient stock?
+      const [anyInventory] = await connection.query(
+        'SELECT *, (expiry_date < CURDATE()) as is_expired FROM inventory WHERE medicine_id = ? LIMIT 1',
+        [prescription.medicine_id]
+      );
       await connection.rollback();
-      return res.status(400).json({ error: 'Insufficient stock' });
+      if (anyInventory.length === 0) {
+        return res.status(400).json({ error: 'Medicine is not available in inventory' });
+      } else if (anyInventory[0].is_expired) {
+        return res.status(400).json({ error: 'Cannot sell expired medicine. Please restock with a new batch.' });
+      } else {
+        return res.status(400).json({ error: 'Insufficient stock to fulfill this prescription' });
+      }
     }
 
     // Update inventory
@@ -679,6 +690,66 @@ app.post('/api/pharmacist/sell/:id', authenticate, authorize('pharmacist'), asyn
     res.status(500).json({ error: 'Server error' });
   } finally {
     connection.release();
+  }
+});
+
+// Pharmacist notifications - expired medicines + prescriptions with missing/out-of-stock medicine
+app.get('/api/pharmacist/notifications', authenticate, authorize('pharmacist'), async (req, res) => {
+  try {
+    // 1. Get all expired medicines in inventory
+    const [expiredMedicines] = await db.query(`
+      SELECT i.id, m.name as medicine_name, i.batch_number, i.expiry_date, i.stock_quantity,
+        'expired' as notification_type
+      FROM inventory i
+      JOIN medicines m ON i.medicine_id = m.id
+      WHERE i.expiry_date < CURDATE()
+      ORDER BY i.expiry_date ASC
+    `);
+
+    // 2. Get active prescriptions where the medicine has no valid (unexpired, in-stock) inventory
+    const [missingMedicines] = await db.query(`
+      SELECT DISTINCT m.name as medicine_name, m.id as medicine_id,
+        COUNT(p.id) as prescription_count,
+        'missing' as notification_type
+      FROM prescriptions p
+      JOIN medicines m ON p.medicine_id = m.id
+      WHERE p.status = 'active' AND p.bought = FALSE
+        AND NOT EXISTS (
+          SELECT 1 FROM inventory i
+          WHERE i.medicine_id = p.medicine_id
+            AND i.expiry_date >= CURDATE()
+            AND i.stock_quantity > 0
+        )
+      GROUP BY m.id, m.name
+    `);
+
+    const notifications = [
+      ...expiredMedicines.map(item => ({
+        id: item.id,
+        type: 'expired',
+        title: 'Expired Medicine',
+        message: `${item.medicine_name} (Batch: ${item.batch_number}) expired on ${new Date(item.expiry_date).toLocaleDateString()}`,
+        medicine_name: item.medicine_name,
+        batch_number: item.batch_number,
+        expiry_date: item.expiry_date,
+        stock_quantity: item.stock_quantity,
+        inventory_id: item.id
+      })),
+      ...missingMedicines.map(item => ({
+        id: `missing_${item.medicine_id}`,
+        type: 'missing',
+        title: 'Medicine Not in Inventory',
+        message: `${item.medicine_name} has been prescribed (${item.prescription_count} active prescription(s)) but is not available in inventory`,
+        medicine_name: item.medicine_name,
+        medicine_id: item.medicine_id,
+        prescription_count: item.prescription_count
+      }))
+    ];
+
+    res.json(notifications);
+  } catch (error) {
+    console.error('Pharmacist notifications error:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

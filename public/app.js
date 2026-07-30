@@ -1217,7 +1217,7 @@ async function renderPharmacistDashboard() {
             </button>
             <div class="sidebar">
                 <div class="sidebar-header">
-                    <h2>Online Medication & Prescription Tracking</h2>
+                    <h2>Online Medication &amp; Prescription Tracking</h2>
                 </div>
                 
                 <div class="user-info">
@@ -1246,6 +1246,21 @@ async function renderPharmacistDashboard() {
             </div>
             
             <div class="main-content">
+                <div style="display:flex; justify-content:flex-end; padding: 1rem 1.5rem 0; position: relative;">
+                    <button id="pharmNotifBtn" onclick="togglePharmacistNotifications()" style="background:var(--bg-card); border:1px solid var(--border-color); color:var(--text-primary); border-radius:50%; width:44px; height:44px; cursor:pointer; position:relative; display:flex; align-items:center; justify-content:center; font-size:1.2rem; box-shadow:var(--shadow); transition: background 0.2s;" title="Notifications">
+                        🔔
+                        <span id="pharmNotifBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--accent-red); color:#fff; border-radius:50%; width:20px; height:20px; font-size:0.7rem; font-weight:700; align-items:center; justify-content:center;">0</span>
+                    </button>
+                    <div id="pharmNotifPanel" style="display:none; position:absolute; top:60px; right:1.5rem; width:420px; max-height:500px; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; box-shadow:var(--shadow-lg); z-index:999;">
+                        <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border-color); display:flex; align-items:center; justify-content:space-between;">
+                            <h3 style="font-size:1rem; font-weight:700;">🔔 Notifications</h3>
+                            <button onclick="togglePharmacistNotifications()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;">×</button>
+                        </div>
+                        <div id="pharmNotifList" style="padding:0.5rem 0;">
+                            <div style="padding:1rem; text-align:center; color:var(--text-muted);">Loading...</div>
+                        </div>
+                    </div>
+                </div>
                 <div id="pharmacistContent"></div>
             </div>
         </div>
@@ -1264,7 +1279,148 @@ async function renderPharmacistDashboard() {
     });
 
     loadPharmacistInventory();
+    loadPharmacistNotificationCount();
 }
+
+async function loadPharmacistNotificationCount() {
+    try {
+        const notifications = await apiCall('/pharmacist/notifications');
+        const badge = document.getElementById('pharmNotifBadge');
+        if (badge) {
+            if (notifications.length > 0) {
+                badge.textContent = notifications.length;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load notification count', e);
+    }
+}
+
+window.togglePharmacistNotifications = async function() {
+    const panel = document.getElementById('pharmNotifPanel');
+    if (!panel) return;
+    const isOpen = panel.style.display !== 'none';
+    if (isOpen) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = 'block';
+    const listDiv = document.getElementById('pharmNotifList');
+    listDiv.innerHTML = '<div style="padding:1rem; text-align:center; color:var(--text-muted);">Loading...</div>';
+    try {
+        const notifications = await apiCall('/pharmacist/notifications');
+        if (notifications.length === 0) {
+            listDiv.innerHTML = '<div style="padding:1.5rem; text-align:center; color:var(--text-muted);">✅ No notifications. All medicines are in order.</div>';
+            return;
+        }
+        listDiv.innerHTML = notifications.map(n => {
+            if (n.type === 'expired') {
+                return `
+                    <div style="padding:0.85rem 1.25rem; border-bottom:1px solid var(--border-color); background:rgba(239,68,68,0.05);">
+                        <div style="display:flex; align-items:flex-start; gap:0.75rem;">
+                            <span style="font-size:1.3rem; flex-shrink:0;">🚨</span>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-weight:700; color:var(--accent-red); font-size:0.85rem; margin-bottom:0.2rem;">${n.title}</div>
+                                <div style="color:var(--text-secondary); font-size:0.8rem; margin-bottom:0.65rem;">${n.message}</div>
+                                <div style="display:flex; gap:0.5rem;">
+                                    <button onclick="pharmRestockModal(${n.inventory_id}, '${n.medicine_name.replace(/'/g, "\\'")}')"
+                                        style="background:var(--accent-blue); color:#fff; border:none; border-radius:6px; padding:0.35rem 0.8rem; font-size:0.75rem; font-weight:600; cursor:pointer;">🔄 Restock</button>
+                                    <button onclick="pharmRemoveExpired(${n.inventory_id})"
+                                        style="background:var(--accent-red); color:#fff; border:none; border-radius:6px; padding:0.35rem 0.8rem; font-size:0.75rem; font-weight:600; cursor:pointer;">🗑️ Remove</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            } else {
+                return `
+                    <div style="padding:0.85rem 1.25rem; border-bottom:1px solid var(--border-color); background:rgba(245,158,11,0.05);">
+                        <div style="display:flex; align-items:flex-start; gap:0.75rem;">
+                            <span style="font-size:1.3rem; flex-shrink:0;">⚠️</span>
+                            <div style="flex:1;">
+                                <div style="font-weight:700; color:var(--accent-orange); font-size:0.85rem; margin-bottom:0.2rem;">${n.title}</div>
+                                <div style="color:var(--text-secondary); font-size:0.8rem;">${n.message}</div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+        }).join('');
+    } catch(e) {
+        listDiv.innerHTML = '<div style="padding:1rem; color:var(--accent-red);">Failed to load notifications.</div>';
+    }
+};
+
+window.pharmRestockModal = function(inventoryId, medicineName) {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔄 Restock: ${medicineName}</h3>
+                <button class="close-modal">×</button>
+            </div>
+            <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:1rem;">Enter new batch details to replace the expired stock.</p>
+            <form id="restockForm">
+                <div class="form-group">
+                    <label>New Batch Number</label>
+                    <input type="text" id="restockBatch" required placeholder="e.g. BATCH2027001">
+                </div>
+                <div class="form-group">
+                    <label>New Expiry Date</label>
+                    <input type="date" id="restockExpiry" required>
+                </div>
+                <div class="form-group">
+                    <label>Stock Quantity</label>
+                    <input type="number" id="restockQty" min="1" required placeholder="Enter quantity">
+                </div>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">✅ Restock</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelectorAll('.close-modal').forEach(b => b.addEventListener('click', () => modal.remove()));
+    modal.querySelector('#restockForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const batchNumber = document.getElementById('restockBatch').value;
+        const expiryDate = document.getElementById('restockExpiry').value;
+        const stockQuantity = document.getElementById('restockQty').value;
+        try {
+            await apiCall(`/inventory/${inventoryId}`, 'PUT', { batchNumber, expiryDate, stockQuantity });
+            modal.remove();
+            // Close notification panel and refresh
+            const panel = document.getElementById('pharmNotifPanel');
+            if (panel) panel.style.display = 'none';
+            loadPharmacistInventory();
+            loadPharmacistNotificationCount();
+            alert('✅ Medicine restocked successfully!');
+        } catch(err) {
+            alert('Error restocking: ' + err.message);
+        }
+    });
+};
+
+window.pharmRemoveExpired = async function(inventoryId) {
+    if (!confirm('Remove this expired medicine from inventory? This action cannot be undone.')) return;
+    try {
+        await apiCall(`/inventory/${inventoryId}`, 'DELETE');
+        // Refresh notification panel
+        const panel = document.getElementById('pharmNotifPanel');
+        if (panel && panel.style.display !== 'none') {
+            await window.togglePharmacistNotifications();
+            await window.togglePharmacistNotifications();
+        }
+        loadPharmacistInventory();
+        loadPharmacistNotificationCount();
+        alert('✅ Expired medicine removed from inventory.');
+    } catch(err) {
+        alert('Error removing: ' + err.message);
+    }
+};
 
 async function loadPharmacistInventory() {
     try {
@@ -1303,16 +1459,19 @@ async function loadPharmacistInventory() {
                             </tr>
                         </thead>
                         <tbody>
-                            ${inventory.map(item => `
-                                <tr>
+                            ${inventory.map(item => {
+                                const isExpired = Number(item.is_expired) === 1;
+                                const isLowStock = Number(item.is_low_stock) === 1;
+                                return `
+                                <tr style="${isExpired ? 'opacity:0.85;' : ''}">
                                     <td>${item.medicine_name}</td>
                                     <td>${item.batch_number}</td>
-                                    <td>${new Date(item.expiry_date).toLocaleDateString()}</td>
+                                    <td style="color: ${isExpired ? 'var(--accent-red)' : 'inherit'};">${new Date(item.expiry_date).toLocaleDateString()}</td>
                                     <td>${item.stock_quantity}</td>
                                     <td>
-                                        ${item.is_expired ? '<span class="badge badge-danger">Expired</span>' : ''}
-                                        ${item.is_low_stock && !item.is_expired ? '<span class="badge badge-warning">Low Stock</span>' : ''}
-                                        ${!item.is_expired && !item.is_low_stock ? '<span class="badge badge-success">OK</span>' : ''}
+                                        ${isExpired ? '<span class="badge badge-danger">Expired</span>' : ''}
+                                        ${isLowStock && !isExpired ? '<span class="badge badge-warning">Low Stock</span>' : ''}
+                                        ${!isExpired && !isLowStock ? '<span class="badge badge-success">OK</span>' : ''}
                                     </td>
                                     <td>
                                         <button class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;" 
@@ -1320,8 +1479,8 @@ async function loadPharmacistInventory() {
                                         <button class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.875rem;" 
                                             onclick="deleteInventory(${item.id})">Delete</button>
                                     </td>
-                                </tr>
-                            `).join('')}
+                                </tr>`;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -2197,19 +2356,22 @@ async function loadAdminInventory() {
                             </tr>
                         </thead>
                         <tbody>
-                            ${inventory.map(item => `
+                            ${inventory.map(item => {
+                                const isExpired = Number(item.is_expired) === 1;
+                                const isLowStock = Number(item.is_low_stock) === 1;
+                                return `
                                 <tr>
                                     <td>${item.medicine_name}</td>
                                     <td>${item.batch_number}</td>
-                                    <td>${new Date(item.expiry_date).toLocaleDateString()}</td>
+                                    <td style="color: ${isExpired ? 'var(--accent-red)' : 'inherit'};">${new Date(item.expiry_date).toLocaleDateString()}</td>
                                     <td>${item.stock_quantity}</td>
                                     <td>
-                                        ${item.is_expired ? '<span class="badge badge-danger">Expired</span>' : ''}
-                                        ${item.is_low_stock && !item.is_expired ? '<span class="badge badge-warning">Low Stock</span>' : ''}
-                                        ${!item.is_expired && !item.is_low_stock ? '<span class="badge badge-success">OK</span>' : ''}
+                                        ${isExpired ? '<span class="badge badge-danger">Expired</span>' : ''}
+                                        ${isLowStock && !isExpired ? '<span class="badge badge-warning">Low Stock</span>' : ''}
+                                        ${!isExpired && !isLowStock ? '<span class="badge badge-success">OK</span>' : ''}
                                     </td>
-                                </tr>
-                            `).join('')}
+                                </tr>`;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
